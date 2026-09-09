@@ -4,6 +4,8 @@ import socialflowLogo from "../../Assets/Images/socialflow.png";
 
 type DashboardSidebarProps = {
   onLogout: () => void;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 };
 
 type NavigationIcon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -51,6 +53,32 @@ const ActionsIcon: NavigationIcon = (props) => (
   </svg>
 );
 
+const YouTubeIcon: NavigationIcon = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    {...props}
+  >
+    <rect x="3" y="6" width="18" height="12" rx="3" />
+    <path d="m10 9 5 3-5 3V9Z" />
+  </svg>
+);
+
+const TikTokIcon: NavigationIcon = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    {...props}
+  >
+    <path d="M14 4v10.5a3.5 3.5 0 1 1-3-3.46" />
+    <path d="M14 4c.5 2.2 1.8 3.5 4 4" />
+  </svg>
+);
+
 const ActivityIcon: NavigationIcon = (props) => (
   <svg
     viewBox="0 0 24 24"
@@ -80,59 +108,86 @@ const navigationItems: { label: string; path: string; icon: NavigationIcon }[] =
   [
     { label: "Dashboard", path: "/dashboard", icon: DashboardIcon },
     { label: "Accounts", path: "/accounts", icon: AccountsIcon },
+    { label: "YouTube Workflow", path: "/youtube-workflow", icon: YouTubeIcon },
+    { label: "TikTok Workflow", path: "/tiktok-workflow", icon: TikTokIcon },
     { label: "Actions", path: "/actions", icon: ActionsIcon },
     { label: "Activity", path: "/activity", icon: ActivityIcon },
     { label: "Settings", path: "/settings", icon: SettingsIcon },
   ];
 
-function DashboardSidebar({ onLogout }: DashboardSidebarProps) {
+function DashboardSidebar({
+  onLogout,
+  isMobileOpen = false,
+  onCloseMobile = () => undefined,
+}: DashboardSidebarProps) {
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white px-5 py-6 md:flex md:flex-col">
-      <div className="mb-12 flex items-center gap-3 text-lg font-semibold tracking-tight text-[#102a43]">
-        <img
-          src={socialflowLogo}
-          alt="Social Media Manager logo"
-          className="h-9 w-9 rounded-xl bg-white p-1 object-contain"
-        />
-        Social Media Manager
-      </div>
-
-      <nav className="space-y-1">
-        {navigationItems.map(({ label, path, icon: Icon }) => (
-          <NavLink
-            key={label}
-            to={path}
-            className={({ isActive }) =>
-              `flex w-full items-center rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${isActive ? "bg-[#eaf2fc] text-[#1976d2]" : "text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"}`
-            }
-          >
-            <Icon aria-hidden="true" className="mr-3 h-5 w-5 shrink-0" />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
-
-      <div className="mt-auto border-t border-slate-100 pt-5">
-        <div className="mb-4 flex items-center gap-3 px-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d8f5e7] text-xs font-bold text-[#16845b]">
-            DM
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[#102a43]">
-              Demo Member
-            </p>
-            <p className="truncate text-xs text-slate-400">demo@gmail.com</p>
-          </div>
-        </div>
+    <>
+      {isMobileOpen && (
         <button
           type="button"
-          onClick={onLogout}
-          className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"
-        >
-          Log out
-        </button>
-      </div>
-    </aside>
+          aria-label="Close navigation"
+          onClick={onCloseMobile}
+          className="fixed inset-0 z-40 bg-[#102a43]/40 md:hidden"
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-5 py-6 transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-screen md:max-h-screen md:overflow-hidden md:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <div className="mb-12 flex items-center gap-3 text-lg font-semibold tracking-tight text-[#102a43]">
+          <img
+            src={socialflowLogo}
+            alt="Social Media Manager logo"
+            className="h-9 w-9 rounded-xl bg-white p-1 object-contain"
+          />
+          Social Media Manager
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label="Close navigation"
+            className="ml-auto text-2xl font-light text-slate-400 hover:text-[#102a43] md:hidden"
+          >
+            ×
+          </button>
+        </div>
+
+        <nav className="space-y-1">
+          {navigationItems.map(({ label, path, icon: Icon }) => (
+            <NavLink
+              key={label}
+              to={path}
+              className={({ isActive }) =>
+                `flex w-full items-center rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${isActive ? "bg-[#eaf2fc] text-[#1976d2]" : "text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"}`
+              }
+              onClick={onCloseMobile}
+            >
+              <Icon aria-hidden="true" className="mr-3 h-5 w-5 shrink-0" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="mt-auto border-t border-slate-100 pt-5">
+          <div className="mb-4 flex items-center gap-3 px-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d8f5e7] text-xs font-bold text-[#16845b]">
+              DM
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-[#102a43]">
+                Demo Member
+              </p>
+              <p className="truncate text-xs text-slate-400">demo@gmail.com</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"
+          >
+            Log out
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 

@@ -1,47 +1,38 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  getStoredAccounts,
+  StoredAccount,
+} from "../../utils/socialflowStorage";
+import { EmptyState, ErrorState, LoadingState } from "./ResourceStates";
 
-const connectedAccounts = [
-  {
-    name: "@maria.studio",
-    platform: "TikTok",
-    status: "Connected",
-    lastActive: "2 min ago",
-    initials: "MS",
-    color: "bg-[#e9d5ff] text-[#6b21a8]",
-  },
-  {
-    name: "Growth Lab",
-    platform: "YouTube",
-    status: "Connected",
-    lastActive: "12 min ago",
-    initials: "GL",
-    color: "bg-[#bfdbfe] text-[#1d4ed8]",
-  },
-  {
-    name: "@northstar.co",
-    platform: "TikTok",
-    status: "Needs attention",
-    lastActive: "Yesterday",
-    initials: "NC",
-    color: "bg-[#fed7aa] text-[#c2410c]",
-  },
-  {
-    name: "Creator Weekly",
-    platform: "YouTube",
-    status: "Connected",
-    lastActive: "Monday",
-    initials: "CW",
-    color: "bg-[#d8f5e7] text-[#16845b]",
-  },
-];
-
-function AccountsView() {
+function AccountsView({ onConnectAccount }: { onConnectAccount: () => void }) {
   const [filter, setFilter] = useState("All");
+  const [connectedAccounts, setConnectedAccounts] = useState<
+    StoredAccount[] | null
+  >(null);
+  const [hasError, setHasError] = useState(false);
   const filters = ["All", "TikTok", "YouTube"];
-  const filteredAccounts =
-    filter === "All"
-      ? connectedAccounts
-      : connectedAccounts.filter((account) => account.platform === filter);
+
+  function loadAccounts() {
+    setHasError(false);
+    setConnectedAccounts(null);
+    window.setTimeout(() => {
+      try {
+        setConnectedAccounts(getStoredAccounts());
+      } catch {
+        setHasError(true);
+      }
+    }, 300);
+  }
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  const filteredAccounts = connectedAccounts?.filter(
+    (account) => filter === "All" || account.platform === filter,
+  );
 
   return (
     <ViewShell
@@ -64,60 +55,88 @@ function AccountsView() {
         </div>
         <button
           type="button"
+          onClick={onConnectAccount}
           className="rounded-xl bg-[#102a43] px-4 py-3 text-sm font-semibold text-white hover:bg-[#183f60]"
         >
           + Connect account
         </button>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="hidden grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 md:grid">
-          <span>Account</span>
-          <span>Platform</span>
-          <span>Status</span>
-          <span>Last active</span>
-          <span />
-        </div>
-        {filteredAccounts.map((account) => (
-          <div
-            key={account.name}
-            className="grid gap-4 border-b border-slate-100 px-5 py-5 last:border-0 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] md:items-center md:px-6"
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className={`flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold ${account.color}`}
-              >
-                {account.initials}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[#102a43]">
-                  {account.name}
-                </p>
-                <p className="mt-1 text-xs text-slate-400 md:hidden">
-                  {account.platform} · {account.lastActive}
-                </p>
-              </div>
-            </div>
-            <span className="hidden text-sm text-slate-500 md:block">
-              {account.platform}
-            </span>
-            <span
-              className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${account.status === "Connected" ? "bg-[#e8f8f0] text-[#16845b]" : "bg-[#fff7e6] text-[#b45309]"}`}
-            >
-              {account.status}
-            </span>
-            <span className="hidden text-sm text-slate-500 md:block">
-              {account.lastActive}
-            </span>
-            <button
-              type="button"
-              aria-label={`Open ${account.name} menu`}
-              className="hidden text-lg text-slate-400 hover:text-[#102a43] md:block"
-            >
-              •••
-            </button>
+      {hasError ? (
+        <ErrorState onRetry={loadAccounts} />
+      ) : connectedAccounts === null ? (
+        <LoadingState label="Loading connected accounts..." />
+      ) : connectedAccounts.length === 0 ? (
+        <EmptyState
+          title="No accounts connected"
+          description="Connect your first TikTok or YouTube account to start using Social Media Manager."
+          action={{ label: "Connect account", onClick: onConnectAccount }}
+        />
+      ) : filteredAccounts?.length === 0 ? (
+        <EmptyState
+          title={`No ${filter} accounts`}
+          description="There are no connected accounts for this platform yet."
+          action={{
+            label: "Show all accounts",
+            onClick: () => setFilter("All"),
+          }}
+        />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="hidden grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 md:grid">
+            <span>Account</span>
+            <span>Platform</span>
+            <span>Status</span>
+            <span>Last active</span>
+            <span />
           </div>
-        ))}
-      </div>
+          {filteredAccounts?.map((account) => (
+            <div
+              key={account.name}
+              className="grid gap-4 border-b border-slate-100 px-5 py-5 last:border-0 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] md:items-center md:px-6"
+            >
+              <Link
+                to={`/accounts/${account.id}`}
+                className="flex items-center gap-3 rounded-lg outline-none focus:ring-2 focus:ring-[#2f80ed]/30"
+              >
+                <span
+                  className={`flex h-10 w-10 items-center justify-center rounded-xl text-xs font-bold ${account.color}`}
+                >
+                  {account.initials}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[#102a43]">
+                    {account.name}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400 md:hidden">
+                    {account.platform} · {account.lastActive}
+                  </p>
+                </div>
+              </Link>
+              <span className="hidden text-sm text-slate-500 md:block">
+                {account.platform}
+              </span>
+              <span
+                className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${account.status === "Connected" ? "bg-[#e8f8f0] text-[#16845b]" : "bg-[#fff7e6] text-[#b45309]"}`}
+              >
+                {account.status}
+              </span>
+              <span className="hidden text-sm text-slate-500 md:block">
+                {account.lastActive}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  window.location.assign(`/accounts/${account.id}`)
+                }
+                aria-label={`Open ${account.name} menu`}
+                className="hidden text-lg text-slate-400 hover:text-[#102a43] md:block"
+              >
+                •••
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </ViewShell>
   );
 }

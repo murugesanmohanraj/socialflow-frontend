@@ -1,4 +1,10 @@
-import { useLocation } from "react-router-dom";
+import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import ConnectAccountModal from "../Accounts/ConnectAccountModal";
+import {
+  getStoredAccounts,
+  getStoredActivities,
+} from "../../utils/socialflowStorage";
 import AccountsView from "./AccountsView";
 import ActionsView from "./ActionsView";
 import ActivityView from "./ActivityView";
@@ -9,67 +15,39 @@ type DashboardOverviewProps = {
   onLogout: () => void;
 };
 
-const accounts = [
-  {
-    name: "@maria.studio",
-    platform: "TikTok",
-    status: "Connected",
-    lastActive: "2 min ago",
-    initials: "MS",
-    color: "bg-[#e9d5ff] text-[#6b21a8]",
-  },
-  {
-    name: "Growth Lab",
-    platform: "YouTube",
-    status: "Connected",
-    lastActive: "12 min ago",
-    initials: "GL",
-    color: "bg-[#bfdbfe] text-[#1d4ed8]",
-  },
-  {
-    name: "@northstar.co",
-    platform: "TikTok",
-    status: "Needs attention",
-    lastActive: "Yesterday",
-    initials: "NC",
-    color: "bg-[#fed7aa] text-[#c2410c]",
-  },
-];
-
-const activities = [
-  {
-    title: "Content opened successfully",
-    account: "@maria.studio",
-    time: "8 min ago",
-    status: "Success",
-    tone: "text-[#16845b] bg-[#e8f8f0]",
-  },
-  {
-    title: "YouTube account connected",
-    account: "Growth Lab",
-    time: "32 min ago",
-    status: "Success",
-    tone: "text-[#16845b] bg-[#e8f8f0]",
-  },
-  {
-    title: "Authorization needs attention",
-    account: "@northstar.co",
-    time: "Yesterday",
-    status: "Review",
-    tone: "text-[#b45309] bg-[#fff7e6]",
-  },
-];
-
 function DashboardOverview({ onLogout }: DashboardOverviewProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [accounts] = useState(getStoredAccounts);
+  const [activities] = useState(getStoredActivities);
+  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const activeView = location.pathname.slice(1) || "dashboard";
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
       <div className="flex min-h-screen">
-        <DashboardSidebar onLogout={onLogout} />
+        <DashboardSidebar
+          onLogout={onLogout}
+          isMobileOpen={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
+        />
 
-        <section className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:px-12">
+        <section className="min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-6 lg:px-12">
+          <div className="mb-6 flex items-center justify-between md:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open navigation"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-[#102a43] shadow-sm"
+            >
+              ☰
+            </button>
+            <span className="text-sm font-semibold text-[#102a43]">
+              Social Media Manager
+            </span>
+            <span className="h-11 w-11" />
+          </div>
           {activeView === "dashboard" ? (
             <>
               <header className="mb-8 flex items-start justify-between gap-4">
@@ -77,8 +55,8 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                   <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-[#2f80ed]">
                     Overview
                   </p>
-                  <h1 className="text-3xl font-semibold tracking-tight text-[#102a43]">
-                    Hellos, Demo
+                  <h1 className="text-2xl font-semibold tracking-tight text-[#102a43] sm:text-3xl">
+                    Hello, Demo
                   </h1>
                   <p className="mt-2 text-sm text-slate-500">
                     Here&apos;s what&apos;s happening across your social
@@ -134,6 +112,7 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                     </div>
                     <button
                       type="button"
+                      onClick={() => navigate("/accounts")}
                       className="text-sm font-semibold text-[#1976d2] hover:text-[#102a43]"
                     >
                       View all
@@ -182,6 +161,7 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                     </div>
                     <button
                       type="button"
+                      onClick={() => navigate("/activity")}
                       className="text-sm font-semibold text-[#1976d2] hover:text-[#102a43]"
                     >
                       View all
@@ -189,20 +169,20 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                   </div>
                   <div className="space-y-5">
                     {activities.map((activity) => (
-                      <div key={activity.title} className="flex gap-3">
+                      <div key={activity.id} className="flex gap-3">
                         <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e8f8f0] text-xs font-bold text-[#16845b]">
                           ✓
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-[#102a43]">
-                            {activity.title}
+                            {activity.message}
                           </p>
                           <p className="mt-1 text-xs text-slate-400">
-                            {activity.account} · {activity.time}
+                            {activity.account} · {activity.date}
                           </p>
                         </div>
                         <span
-                          className={`self-start rounded-full px-2 py-1 text-[11px] font-semibold ${activity.tone}`}
+                          className={`self-start rounded-full px-2 py-1 text-[11px] font-semibold ${activity.status === "Success" ? "bg-[#e8f8f0] text-[#16845b]" : "bg-[#fff7e6] text-[#b45309]"}`}
                         >
                           {activity.status}
                         </span>
@@ -223,6 +203,7 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                 </div>
                 <button
                   type="button"
+                  onClick={() => setIsConnectModalOpen(true)}
                   className="shrink-0 rounded-xl bg-[#57cc99] px-4 py-3 text-sm font-semibold text-[#102a43] hover:bg-[#8ee3bb]"
                 >
                   Connect account
@@ -230,7 +211,9 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
               </section>
             </>
           ) : activeView === "accounts" ? (
-            <AccountsView />
+            <AccountsView
+              onConnectAccount={() => setIsConnectModalOpen(true)}
+            />
           ) : activeView === "actions" ? (
             <ActionsView />
           ) : activeView === "activity" ? (
@@ -240,6 +223,9 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
           )}
         </section>
       </div>
+      {isConnectModalOpen && (
+        <ConnectAccountModal onClose={() => setIsConnectModalOpen(false)} />
+      )}
     </main>
   );
 }

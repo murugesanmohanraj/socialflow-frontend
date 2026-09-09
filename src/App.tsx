@@ -7,6 +7,14 @@ import { LoginForm } from "./Components/Auth/Login/LoginForm";
 import { RegisterForm } from "./Components/Auth/Register/RegisterForm";
 import { SuccessMessage } from "./Components/Auth/SuccessMessage";
 import { AuthMode } from "./Components/Auth/types";
+import CreateActionView from "./Components/Actions/CreateActionView";
+import ActionExecutionView from "./Components/Actions/ActionExecutionView";
+import ActionResultView from "./Components/Actions/ActionResultView";
+import ActivityDetailsView from "./Components/Activity/ActivityDetailsView";
+import AccountDetailsView from "./Components/Accounts/AccountDetailsView";
+import OAuthAuthorizationView from "./Components/Accounts/OAuthAuthorizationView";
+import TikTokWorkflowView from "./Components/Workflow/TikTokWorkflowView";
+import YouTubeWorkflowView from "./Components/Workflow/YouTubeWorkflowView";
 import DashboardOverview from "./Components/Dashboard/DashboardOverview";
 
 const AUTH_STORAGE_KEY = "socialflow_authenticated";
@@ -67,10 +75,74 @@ function AuthRouter() {
         }
       />
       <Route
+        path="/accounts/:accountId"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <AccountDetailsView onLogout={handleLogout} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/actions"
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <DashboardOverview onLogout={handleLogout} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/youtube-workflow"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <YouTubeWorkflowView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tiktok-workflow"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <TikTokWorkflowView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actions/new"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <CreateActionView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actions/run"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ActionExecutionView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actions/run/:actionId"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ActionExecutionView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actions/result"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ActionResultView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/actions/result/:actionId"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ActionResultView />
           </ProtectedRoute>
         }
       />
@@ -83,10 +155,34 @@ function AuthRouter() {
         }
       />
       <Route
+        path="/activity/:activityId"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ActivityDetailsView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <DashboardOverview onLogout={handleLogout} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/connect/tiktok"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <OAuthAuthorizationView platform="tiktok" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/connect/youtube"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <OAuthAuthorizationView platform="youtube" />
           </ProtectedRoute>
         }
       />
@@ -239,8 +335,8 @@ function AuthPage({
               renderAuthForm()
             )}
             <p className="mt-8 text-center text-xs leading-5 text-slate-400">
-              By continuing, you agree to Social Media Manager&apos;s terms and privacy
-              policy.
+              By continuing, you agree to Social Media Manager&apos;s terms and
+              privacy policy.
             </p>
           </div>
         </section>
