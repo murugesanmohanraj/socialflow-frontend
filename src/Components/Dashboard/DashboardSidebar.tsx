@@ -91,10 +91,10 @@ function DashboardSidebar({ onLogout }: DashboardSidebarProps) {
       <div className="mb-12 flex items-center gap-3 text-lg font-semibold tracking-tight text-[#102a43]">
         <img
           src={socialflowLogo}
-          alt="SocialFlow logo"
+          alt="Social Media Manager logo"
           className="h-9 w-9 rounded-xl bg-white p-1 object-contain"
         />
-        SocialFlow
+        Social Media Manager
       </div>
 
       <nav className="space-y-1">

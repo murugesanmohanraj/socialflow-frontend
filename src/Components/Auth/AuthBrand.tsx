@@ -41,10 +41,10 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
     <div className="relative flex items-center gap-3 text-lg font-semibold tracking-tight">
       <img
         src={socialflowLogo}
-        alt="SocialFlow logo"
+        alt="Social Media Manager logo"
         className={`h-9 w-9 rounded-xl bg-white p-1 object-contain ${compact ? "ring-1 ring-slate-200" : ""}`}
       />
-      SocialFlow
+      Social Media Manager
     </div>
   );
 }

@@ -29,7 +29,7 @@ function SettingsView() {
         </SettingsCard>
         <SettingsCard title="Security">
           <p className="text-sm leading-6 text-slate-500">
-            Keep your SocialFlow workspace protected with strong account
+            Keep your Social Media Manager workspace protected with strong account
             security.
           </p>
           <button

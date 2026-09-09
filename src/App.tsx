@@ -215,7 +215,7 @@ function AuthPage({
                   ? "Reset your password"
                   : isRegistering
                     ? "Create your workspace"
-                    : "Sign in to SocialFlow"}
+                    : "Sign in to Social Media Manager"}
               </h2>
               <p className="mt-3 text-sm leading-6 text-slate-500">
                 {isForgotPassword
@@ -239,7 +239,7 @@ function AuthPage({
               renderAuthForm()
             )}
             <p className="mt-8 text-center text-xs leading-5 text-slate-400">
-              By continuing, you agree to SocialFlow&apos;s terms and privacy
+              By continuing, you agree to Social Media Manager&apos;s terms and privacy
               policy.
             </p>
           </div>
