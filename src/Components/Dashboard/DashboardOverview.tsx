@@ -78,7 +78,7 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                     Overview
                   </p>
                   <h1 className="text-3xl font-semibold tracking-tight text-[#102a43]">
-                    Hello, Demo
+                    Hellos, Demo
                   </h1>
                   <p className="mt-2 text-sm text-slate-500">
                     Here&apos;s what&apos;s happening across your social
