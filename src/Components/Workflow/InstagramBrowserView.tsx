@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { getAccounts } from "../../services/accountsApi";
-import { openTikTokPost } from "../../services/tiktokBrowserApi";
+import { openInstagramPost } from "../../services/instagramBrowserApi";
 import { ViewShell } from "../Dashboard/AccountsView";
 import DashboardSidebar from "../Dashboard/DashboardSidebar";
 
-function TikTokWorkflowView() {
-  const navigate = useNavigate();
+function InstagramBrowserView() {
   const [url, setUrl] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>(
@@ -16,7 +14,7 @@ function TikTokWorkflowView() {
   const [isOpening, setIsOpening] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [error, setError] = useState("");
-  const [likeVideo, setLikeVideo] = useState(false);
+  const [likePost, setLikePost] = useState(false);
   const [postComment, setPostComment] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [view, setView] = useState<"form" | "running" | "complete">("form");
@@ -29,18 +27,18 @@ function TikTokWorkflowView() {
   useEffect(() => {
     getAccounts()
       .then((items) => {
-        const tiktokAccounts = items.filter(
-          (account) => account.platform === "TikTok",
+        const instagramAccounts = items.filter(
+          (account) => account.platform === "Instagram",
         );
         setAccounts(
-          tiktokAccounts.map((account) => ({
+          instagramAccounts.map((account) => ({
             id: account.id,
             name: account.name,
           })),
         );
-        setSelectedAccountId(tiktokAccounts[0]?.id ?? "");
+        setSelectedAccountId(instagramAccounts[0]?.id ?? "");
       })
-      .catch(() => setError("Unable to load connected TikTok accounts."))
+      .catch(() => setError("Unable to load connected Instagram accounts."))
       .finally(() => setIsLoadingAccounts(false));
   }, []);
 
@@ -64,7 +62,7 @@ function TikTokWorkflowView() {
                 ☰
               </button>
               <span className="text-sm font-semibold text-[#102a43]">
-                TikTok workflow
+                Instagram workflow
               </span>
               <span className="h-11 w-11" />
             </div>
@@ -82,14 +80,14 @@ function TikTokWorkflowView() {
     setView("form");
 
     if (!url.trim()) {
-      setError("Enter a valid TikTok video URL.");
+      setError("Enter a valid Instagram post URL.");
       return;
     }
     if (!selectedAccountId) {
-      setError("Select at least one TikTok account.");
+      setError("Select at least one Instagram account.");
       return;
     }
-    if (!likeVideo && !postComment) {
+    if (!likePost && !postComment) {
       setError("Choose at least one action.");
       return;
     }
@@ -103,17 +101,17 @@ function TikTokWorkflowView() {
 
     try {
       const selectedAction =
-        likeVideo && postComment
+        likePost && postComment
           ? "like_comment"
-          : likeVideo
+          : likePost
             ? "like"
             : "comment";
 
-      const response = await openTikTokPost(
+      const response = await openInstagramPost(
         url.trim(),
         selectedAccountId,
         selectedAction,
-        postComment ? commentText.trim() : undefined,
+        postComment ? commentText.trim() || "good" : undefined,
       );
       setResult(response);
       setView("complete");
@@ -121,7 +119,7 @@ function TikTokWorkflowView() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unable to execute TikTok workflow.",
+          : "Unable to open Instagram.",
       );
     } finally {
       setIsOpening(false);
@@ -132,9 +130,9 @@ function TikTokWorkflowView() {
     const selectedAccount =
       accounts.find((item) => item.id === selectedAccountId) ?? null;
     const actionLabel =
-      likeVideo && postComment
+      likePost && postComment
         ? "Like + comment"
-        : likeVideo
+        : likePost
           ? "Like enabled"
           : "Comment enabled";
 
@@ -143,20 +141,20 @@ function TikTokWorkflowView() {
         <ViewShell
           eyebrow="Actions / Execution"
           title="Action running"
-          description="Social Media Manager is working through the selected TikTok account."
+          description="Social Media Manager is working through the selected account."
         >
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6b21a8]">
-                  TikTok post
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#be185d]">
+                  Instagram post
                 </p>
                 <h2 className="mt-2 text-xl font-semibold text-[#102a43]">
-                  TikTok workflow
+                  Instagram workflow
                 </h2>
                 <p className="mt-2 break-all text-sm text-slate-500">{url}</p>
               </div>
-              <span className="w-fit rounded-full bg-[#f3e8ff] px-3 py-1 text-xs font-semibold text-[#6b21a8]">
+              <span className="w-fit rounded-full bg-[#fce7f3] px-3 py-1 text-xs font-semibold text-[#be185d]">
                 In progress
               </span>
             </div>
@@ -169,7 +167,7 @@ function TikTokWorkflowView() {
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                 <div
-                  className="h-full rounded-full bg-[#6b21a8] transition-all duration-500"
+                  className="h-full rounded-full bg-[#be185d] transition-all duration-500"
                   style={{ width: "0%" }}
                 />
               </div>
@@ -187,15 +185,15 @@ function TikTokWorkflowView() {
               </div>
               <div className="grid gap-3 border-b border-slate-100 px-5 py-4 last:border-0 sm:grid-cols-[1.5fr_1fr_1fr] sm:items-center sm:gap-4">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
-                    {selectedAccount?.name.slice(0, 2).toUpperCase() || "TT"}
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#fce7f3] text-xs font-bold text-[#be185d]">
+                    {selectedAccount?.name.slice(0, 2).toUpperCase() || "IG"}
                   </span>
                   <span className="text-sm font-semibold text-[#102a43]">
                     {selectedAccount?.name || "Connected account"}
                   </span>
                 </div>
-                <span className="text-xs text-slate-500">TikTok</span>
-                <span className="w-fit rounded-full bg-[#f3e8ff] px-2.5 py-1 text-xs font-semibold text-[#6b21a8]">
+                <span className="text-xs text-slate-500">Instagram</span>
+                <span className="w-fit rounded-full bg-[#fce7f3] px-2.5 py-1 text-xs font-semibold text-[#be185d]">
                   Running
                 </span>
               </div>
@@ -225,8 +223,8 @@ function TikTokWorkflowView() {
       <div className="mx-auto w-full max-w-5xl">
         <ViewShell
           eyebrow="Actions / Complete"
-          title="TikTok workflow complete"
-          description="The selected account finished the requested TikTok action."
+          title="Instagram workflow complete"
+          description="The selected account finished the requested Instagram action."
         >
           <section className="rounded-2xl border border-[#b7ebd0] bg-white p-5 shadow-sm sm:p-8">
             <div className="flex flex-col gap-5">
@@ -235,7 +233,7 @@ function TikTokWorkflowView() {
                   Action summary
                 </p>
                 <h2 className="mt-2 text-2xl font-semibold text-[#102a43]">
-                  {result.title || "TikTok action completed"}
+                  {result.title || "Instagram action completed"}
                 </h2>
               </div>
               <div className="rounded-xl bg-[#f5f7fb] p-4 text-sm text-slate-600">
@@ -255,7 +253,7 @@ function TikTokWorkflowView() {
                 <button
                   type="button"
                   onClick={() => setSelectedAccountId(accounts[0]?.id ?? "")}
-                  className="rounded-xl bg-[#6b21a8] px-4 py-3 text-sm font-semibold text-white hover:bg-[#581c87]"
+                  className="rounded-xl bg-[#be185d] px-4 py-3 text-sm font-semibold text-white hover:bg-[#9d174d]"
                 >
                   Use same account
                 </button>
@@ -267,183 +265,104 @@ function TikTokWorkflowView() {
     );
   }
 
-  if (isLoadingAccounts)
-    return renderPage(
-      <div className="mx-auto w-full max-w-6xl">
-        <p className="text-sm text-slate-500">Loading TikTok accounts...</p>
-      </div>,
-    );
-
-  if (!accounts.length) {
-    return renderPage(
-      <div className="mx-auto w-full max-w-6xl">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#6b21a8]">
-            No TikTok accounts
-          </p>
-          <h2 className="mt-3 text-2xl font-semibold text-[#102a43]">
-            Connect a TikTok account first
-          </h2>
-          <p className="mt-3 text-sm text-slate-500">
-            You need at least one connected TikTok account before starting a
-            workflow.
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate("/connect/tiktok")}
-            className="mt-6 rounded-xl bg-[#6b21a8] px-5 py-3 text-sm font-semibold text-white hover:bg-[#581c87]"
-          >
-            Connect TikTok
-          </button>
-        </div>
-      </div>,
-    );
-  }
-
   return renderPage(
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-5xl">
       <ViewShell
-        eyebrow="TikTok / Workflow"
-        title="TikTok engagement workflow"
-        description="Open the target TikTok video in Chromium and perform the selected browser action."
+        eyebrow="Instagram / Workflow"
+        title="Instagram engagement workflow"
+        description="Prepare an Instagram post workflow and assign the action to the selected account."
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3e8ff] text-sm font-bold text-[#6b21a8]">
-                1
-              </span>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-slate-700">
+                  Post URL
+                </span>
+                <input
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="https://www.instagram.com/p/...."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#be185d] focus:ring-4 focus:ring-[#fbcfe8]"
+                />
+              </label>
+
               <div>
-                <h3 className="text-lg font-semibold text-[#102a43]">
-                  Target video
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Paste the exact TikTok video URL to open and act on.
-                </p>
+                <span className="mb-2 block text-sm font-semibold text-slate-700">
+                  Account
+                </span>
+                <select
+                  value={selectedAccountId}
+                  onChange={(event) => setSelectedAccountId(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#be185d] focus:ring-4 focus:ring-[#fbcfe8]"
+                  disabled={isLoadingAccounts || accounts.length === 0}
+                >
+                  {accounts.length === 0 ? (
+                    <option value="">No connected Instagram accounts</option>
+                  ) : (
+                    accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
 
-            <label className="block text-sm font-semibold text-slate-700">
-              TikTok video URL
-              <input
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://www.tiktok.com/@creator/video/1234567890"
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#2f80ed] focus:ring-4 focus:ring-[#2f80ed]/10"
-              />
-            </label>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3e8ff] text-sm font-bold text-[#6b21a8]">
-                2
-              </span>
-              <div>
-                <h3 className="text-lg font-semibold text-[#102a43]">
-                  Select action
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Choose the browser action for the connected account.
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 hover:border-[#2f80ed]">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4">
                 <input
                   type="checkbox"
-                  checked={likeVideo}
-                  onChange={() => setLikeVideo((value) => !value)}
-                  className="h-4 w-4 accent-[#6b21a8]"
+                  checked={likePost}
+                  onChange={(event) => setLikePost(event.target.checked)}
+                  className="h-4 w-4 accent-[#be185d]"
                 />
                 <span className="text-sm font-semibold text-[#102a43]">
-                  Like video
+                  Like post
                 </span>
               </label>
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-4 hover:border-[#2f80ed]">
+
+              <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4">
                 <input
                   type="checkbox"
                   checked={postComment}
-                  onChange={() => setPostComment((value) => !value)}
-                  className="h-4 w-4 accent-[#6b21a8]"
+                  onChange={(event) => setPostComment(event.target.checked)}
+                  className="h-4 w-4 accent-[#be185d]"
                 />
                 <span className="text-sm font-semibold text-[#102a43]">
-                  Post comment
+                  Comment
                 </span>
               </label>
             </div>
 
             {postComment && (
-              <label className="mt-5 block">
+              <label className="mt-6 block">
                 <span className="mb-2 block text-sm font-semibold text-slate-700">
                   Comment text
                 </span>
                 <textarea
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
-                  className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#2f80ed] focus:ring-4 focus:ring-[#2f80ed]/10"
+                  className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#be185d] focus:ring-4 focus:ring-[#fbcfe8]"
                   placeholder="Write the comment to post"
                 />
               </label>
             )}
-          </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3e8ff] text-sm font-bold text-[#6b21a8]">
-                3
-              </span>
-              <div>
-                <h3 className="text-lg font-semibold text-[#102a43]">
-                  Choose account
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Use the connected TikTok account to execute the browser
-                  action.
-                </p>
-              </div>
+            {error ? (
+              <p className="mt-4 text-sm font-medium text-red-600">{error}</p>
+            ) : null}
+
+            <div className="mt-8 flex justify-end">
+              <button
+                type="submit"
+                disabled={isOpening || isLoadingAccounts}
+                className="rounded-xl bg-[#be185d] px-5 py-3 text-sm font-semibold text-white hover:bg-[#9d174d] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isOpening ? "Running..." : "Run workflow"}
+              </button>
             </div>
-            <div className="space-y-3">
-              {accounts.map((account) => (
-                <label
-                  key={account.id}
-                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${selectedAccountId === account.id ? "border-[#2f80ed] bg-[#eaf2fc]" : "border-slate-200 hover:border-[#2f80ed]"}`}
-                >
-                  <input
-                    type="radio"
-                    name="tiktok-account"
-                    checked={selectedAccountId === account.id}
-                    onChange={() => setSelectedAccountId(account.id)}
-                    className="h-4 w-4 accent-[#6b21a8]"
-                  />
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
-                    {account.name.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="text-sm font-semibold text-[#102a43]">
-                    {account.name}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-
-          <div className="mt-8 flex flex-col-reverse justify-between gap-3 border-t border-slate-100 pt-5 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isOpening}
-              className="rounded-xl bg-[#6b21a8] px-5 py-3 text-sm font-semibold text-white hover:bg-[#581c87] disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isOpening ? "Running..." : "Execute action"}
-            </button>
           </div>
         </form>
       </ViewShell>
@@ -451,4 +370,4 @@ function TikTokWorkflowView() {
   );
 }
 
-export default TikTokWorkflowView;
+export default InstagramBrowserView;

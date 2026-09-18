@@ -3,9 +3,14 @@ import { AuthMode } from "./types";
 type SuccessMessageProps = {
   mode: AuthMode;
   onBack: () => void;
+  resetUrl?: string;
 };
 
-export function SuccessMessage({ mode, onBack }: SuccessMessageProps) {
+export function SuccessMessage({
+  mode,
+  onBack,
+  resetUrl,
+}: SuccessMessageProps) {
   const isForgotPassword = mode === "forgot";
   const isRegistering = mode === "register";
 
@@ -26,6 +31,14 @@ export function SuccessMessage({ mode, onBack }: SuccessMessageProps) {
           ? "If an account exists for that email, you’ll receive a password reset link shortly."
           : "This frontend flow is ready. Backend authentication will be connected in the next step."}
       </p>
+      {resetUrl && (
+        <a
+          href={resetUrl}
+          className="mt-4 block break-all rounded-lg bg-white p-3 text-xs font-semibold text-[#1976d2] underline"
+        >
+          Open development reset link
+        </a>
+      )}
       <button
         type="button"
         onClick={onBack}

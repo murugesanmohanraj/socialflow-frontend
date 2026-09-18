@@ -1,35 +1,82 @@
-import { useNavigate, useParams } from "react-router-dom";
-import {
-  getStoredAction,
-  getStoredAccount,
-} from "../../utils/socialflowStorage";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { getAction, getExecutionResults } from "../../services/actionsApi";
+import { StoredAction } from "../../utils/socialflowStorage";
 import { ViewShell } from "../Dashboard/AccountsView";
-import { EmptyState } from "../Dashboard/ResourceStates";
+import DashboardSidebar from "../Dashboard/DashboardSidebar";
+import { EmptyState, LoadingState } from "../Dashboard/ResourceStates";
 
 function ActionResultView() {
   const navigate = useNavigate();
   const { actionId } = useParams();
-  const action = getStoredAction(actionId);
-  const resultRows =
-    action?.accountIds.map((accountId, index) => {
-      const account = getStoredAccount(accountId);
-      const failed = account?.status === "Needs attention";
-      return {
-        name: account?.name ?? "Unknown account",
-        platform: account?.platform ?? action.platform,
-        status: failed ? "Failed" : "Success",
-        detail: failed
-          ? "Authorization expired"
-          : `${action.title} completed successfully`,
-        time: `10:2${index}:0${index} AM`,
-      };
-    }) ?? [];
-  const successful = resultRows.filter(
-    (row) => row.status === "Success",
-  ).length;
+  const [searchParams] = useSearchParams();
+  const executionId = searchParams.get("executionId");
+  const [action, setAction] = useState<StoredAction | null>(null);
+  const [result, setResult] = useState<Awaited<
+    ReturnType<typeof getExecutionResults>
+  > | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  if (!action || resultRows.length === 0) {
+  function renderPage(content: React.ReactNode) {
     return (
+      <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
+        <div className="flex min-h-screen">
+          <DashboardSidebar
+            onLogout={() => undefined}
+            isMobileOpen={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
+          />
+          <section className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6 lg:px-12">
+            <div className="mb-6 flex items-center justify-between md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open navigation"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-[#102a43] shadow-sm"
+              >
+                ☰
+              </button>
+              <span className="text-sm font-semibold text-[#102a43]">
+                Actions
+              </span>
+              <span className="h-11 w-11" />
+            </div>
+            {content}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  useEffect(() => {
+    if (!actionId || !executionId) {
+      setHasError(true);
+      return;
+    }
+    Promise.all([getAction(actionId), getExecutionResults(executionId)])
+      .then(([loadedAction, loadedResult]) => {
+        setAction(loadedAction);
+        setResult(loadedResult);
+      })
+      .catch(() => setHasError(true));
+  }, [actionId, executionId]);
+
+  const resultRows =
+    result?.execution.items.map((item) => ({
+      name: item.accountName,
+      platform: action?.platform ?? "",
+      status: item.status === "failed" ? "Failed" : "Success",
+      detail:
+        item.message ?? item.errorMessage ?? "Action completed successfully",
+      time:
+        item.status === "failed" ? "Execution failed" : "Execution completed",
+    })) ?? [];
+  const successful = result?.summary.successful ?? 0;
+  const failed = result?.summary.failed ?? 0;
+
+  if (hasError) {
+    return renderPage(
       <div className="mx-auto w-full max-w-6xl">
         <EmptyState
           title="Action results unavailable"
@@ -39,11 +86,19 @@ function ActionResultView() {
             onClick: () => navigate("/actions"),
           }}
         />
-      </div>
+      </div>,
     );
   }
 
-  return (
+  if (!action || !result) {
+    return renderPage(
+      <div className="mx-auto w-full max-w-6xl">
+        <LoadingState label="Loading execution results..." />
+      </div>,
+    );
+  }
+
+  return renderPage(
     <div className="mx-auto w-full max-w-6xl">
       <ViewShell
         eyebrow="Actions / Results"
@@ -66,11 +121,11 @@ function ActionResultView() {
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ${resultRows.length - successful > 0 ? "bg-[#fff7e6] text-[#b45309]" : "bg-[#e8f8f0] text-[#16845b]"}`}
             >
-              {resultRows.length - successful} failed
+              {failed} failed
             </span>
           </div>
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <ResultStat label="Accounts" value={String(resultRows.length)} />
+            <ResultStat label="Accounts" value={String(result.summary.total)} />
             <ResultStat
               label="Successful"
               value={String(successful)}
@@ -78,7 +133,7 @@ function ActionResultView() {
             />
             <ResultStat
               label="Failed"
-              value={String(resultRows.length - successful)}
+              value={String(failed)}
               tone="text-[#c24141]"
             />
           </div>
@@ -159,7 +214,7 @@ function ActionResultView() {
           </div>
         </section>
       </ViewShell>
-    </div>
+    </div>,
   );
 }
 

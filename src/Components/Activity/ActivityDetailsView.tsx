@@ -1,79 +1,82 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getStoredActivity } from "../../utils/socialflowStorage";
+import { getActivity } from "../../services/activityApi";
+import DashboardSidebar from "../Dashboard/DashboardSidebar";
 import { ViewShell } from "../Dashboard/AccountsView";
-
-const activityDetails = {
-  "maria-open-content": {
-    account: "@maria.studio",
-    platform: "TikTok",
-    action: "Open content",
-    status: "Success",
-    date: "Today, 10:24 AM",
-    target: "https://www.tiktok.com/@creator/video/123456789",
-    duration: "2m 14s",
-    message: "Content opened successfully",
-  },
-  "growth-review-content": {
-    account: "Growth Lab",
-    platform: "YouTube",
-    action: "Review channel content",
-    status: "Success",
-    date: "Today, 9:58 AM",
-    target: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    duration: "1m 42s",
-    message: "Video opened successfully",
-  },
-  "northstar-open-content": {
-    account: "@northstar.co",
-    platform: "TikTok",
-    action: "Open content",
-    status: "Failed",
-    date: "Yesterday, 4:12 PM",
-    target: "https://www.tiktok.com/@creator/video/987654321",
-    duration: "18s",
-    message: "Authorization expired",
-  },
-  "creator-review-content": {
-    account: "Creator Weekly",
-    platform: "YouTube",
-    action: "Review channel content",
-    status: "Success",
-    date: "Sep 07, 11:30 AM",
-    target: "https://www.youtube.com/watch?v=abc123",
-    duration: "2m 03s",
-    message: "Video opened successfully",
-  },
-};
 
 function ActivityDetailsView() {
   const navigate = useNavigate();
   const { activityId } = useParams();
-  const activity =
-    getStoredActivity(activityId) ??
-    (activityId
-      ? activityDetails[activityId as keyof typeof activityDetails]
-      : undefined);
+  const [activity, setActivity] = useState<Awaited<
+    ReturnType<typeof getActivity>
+  > | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  if (!activity)
+  function renderPage(content: React.ReactNode) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-5">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-xl font-semibold text-[#102a43]">
-            Activity not found
-          </h1>
-          <button
-            type="button"
-            onClick={() => navigate("/activity")}
-            className="mt-5 rounded-xl bg-[#102a43] px-4 py-3 text-sm font-semibold text-white"
-          >
-            Back to activity
-          </button>
+      <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
+        <div className="flex min-h-screen">
+          <DashboardSidebar
+            onLogout={() => undefined}
+            isMobileOpen={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
+          />
+          <section className="min-w-0 flex-1 px-4 py-5 sm:px-8 sm:py-6 lg:px-12">
+            <div className="mb-6 flex items-center justify-between md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open navigation"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-[#102a43] shadow-sm"
+              >
+                ☰
+              </button>
+              <span className="text-sm font-semibold text-[#102a43]">
+                Activity
+              </span>
+              <span className="h-11 w-11" />
+            </div>
+            {content}
+          </section>
         </div>
       </main>
     );
+  }
+
+  useEffect(() => {
+    if (!activityId) return;
+    getActivity(activityId)
+      .then(setActivity)
+      .catch(() => setHasError(true));
+  }, [activityId]);
+
+  if (hasError)
+    return renderPage(
+      <div className="mx-auto w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-xl font-semibold text-[#102a43]">
+          Activity not found
+        </h1>
+        <button
+          type="button"
+          onClick={() => navigate("/activity")}
+          className="mt-5 rounded-xl bg-[#102a43] px-4 py-3 text-sm font-semibold text-white"
+        >
+          Back to activity
+        </button>
+      </div>,
+    );
+
+  if (!activity) {
+    return renderPage(
+      <div className="mx-auto w-full max-w-6xl text-center">
+        <p className="text-sm text-slate-500">Loading activity...</p>
+      </div>,
+    );
+  }
 
   const isSuccess = activity.status === "Success";
-  return (
+  return renderPage(
     <div className="mx-auto w-full max-w-6xl">
       <ViewShell
         eyebrow="Activity / Details"
@@ -153,7 +156,7 @@ function ActivityDetailsView() {
           </button>
         </div>
       </ViewShell>
-    </div>
+    </div>,
   );
 }
 

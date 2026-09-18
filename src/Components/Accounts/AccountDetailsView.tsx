@@ -1,70 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardSidebar from "../Dashboard/DashboardSidebar";
-
-type AccountRecord = {
-  id: string;
-  name: string;
-  platform: "TikTok" | "YouTube";
-  status: "Connected" | "Needs attention";
-  connected: string;
-  lastActive: string;
-  initials: string;
-  color: string;
-};
-
-const accountRecords: Record<string, AccountRecord> = {
-  "maria-studio": {
-    id: "maria-studio",
-    name: "@maria.studio",
-    platform: "TikTok",
-    status: "Connected",
-    connected: "September 02, 2026",
-    lastActive: "2 minutes ago",
-    initials: "MS",
-    color: "bg-[#e9d5ff] text-[#6b21a8]",
-  },
-  "growth-lab": {
-    id: "growth-lab",
-    name: "Growth Lab",
-    platform: "YouTube",
-    status: "Connected",
-    connected: "August 28, 2026",
-    lastActive: "12 minutes ago",
-    initials: "GL",
-    color: "bg-[#bfdbfe] text-[#1d4ed8]",
-  },
-  "northstar-co": {
-    id: "northstar-co",
-    name: "@northstar.co",
-    platform: "TikTok",
-    status: "Needs attention",
-    connected: "August 16, 2026",
-    lastActive: "Yesterday",
-    initials: "NC",
-    color: "bg-[#fed7aa] text-[#c2410c]",
-  },
-  "creator-weekly": {
-    id: "creator-weekly",
-    name: "Creator Weekly",
-    platform: "YouTube",
-    status: "Connected",
-    connected: "August 08, 2026",
-    lastActive: "Monday",
-    initials: "CW",
-    color: "bg-[#d8f5e7] text-[#16845b]",
-  },
-};
-
-const recentActivity = [
-  { action: "Open content", status: "Success", time: "Today, 10:24 AM" },
-  { action: "Open content", status: "Success", time: "Today, 9:48 AM" },
-  {
-    action: "Account authorization refreshed",
-    status: "Success",
-    time: "Yesterday, 4:12 PM",
-  },
-];
+import { disconnectAccount, getAccount } from "../../services/accountsApi";
+import { StoredAccount } from "../../utils/socialflowStorage";
 
 function AccountDetailsView({ onLogout }: { onLogout: () => void }) {
   const navigate = useNavigate();
@@ -72,9 +10,36 @@ function AccountDetailsView({ onLogout }: { onLogout: () => void }) {
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [isDisconnectConfirmOpen, setIsDisconnectConfirmOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const account = accountId ? accountRecords[accountId] : undefined;
+  const [account, setAccount] = useState<StoredAccount | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
-  if (!account || isDisconnected) {
+  useEffect(() => {
+    if (!accountId) {
+      setIsLoading(false);
+      setHasError(true);
+      return;
+    }
+
+    setIsLoading(true);
+    setHasError(false);
+    getAccount(accountId)
+      .then(setAccount)
+      .catch(() => setHasError(true))
+      .finally(() => setIsLoading(false));
+  }, [accountId]);
+
+  if (isLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-5">
+        <p className="text-sm font-semibold text-slate-500">
+          Loading account...
+        </p>
+      </main>
+    );
+  }
+
+  if (hasError || !account || isDisconnected) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f5f7fb] px-5">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -243,7 +208,16 @@ function AccountDetailsView({ onLogout }: { onLogout: () => void }) {
               </button>
             </div>
             <div className="divide-y divide-slate-100">
-              {recentActivity.map((item) => (
+              {[
+                {
+                  action: "Account connection",
+                  status:
+                    account.status === "Connected"
+                      ? "Success"
+                      : "Needs attention",
+                  time: account.lastActive,
+                },
+              ].map((item) => (
                 <div
                   key={`${item.action}-${item.time}`}
                   className="flex flex-col justify-between gap-2 py-4 first:pt-0 sm:flex-row sm:items-center"
@@ -300,8 +274,13 @@ function AccountDetailsView({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsDisconnectConfirmOpen(false);
-                    setIsDisconnected(true);
+                    if (!accountId) return;
+                    disconnectAccount(accountId)
+                      .then(() => {
+                        setIsDisconnectConfirmOpen(false);
+                        setIsDisconnected(true);
+                      })
+                      .catch(() => setIsDisconnectConfirmOpen(false));
                   }}
                   className="rounded-xl bg-[#c24141] px-4 py-3 text-sm font-semibold text-white hover:bg-[#991b1b]"
                 >

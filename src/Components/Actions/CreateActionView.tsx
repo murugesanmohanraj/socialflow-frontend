@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { addStoredAction } from "../../utils/socialflowStorage";
+import { getAccounts } from "../../services/accountsApi";
+import { createAction } from "../../services/actionsApi";
+import { StoredPlatform } from "../../utils/socialflowStorage";
 import { ViewShell } from "../Dashboard/AccountsView";
 
-type Platform = "TikTok" | "YouTube";
-type ActionType = "Open content" | "Review channel content";
+type Platform = StoredPlatform;
+type ActionType =
+  | "Open content"
+  | "Review channel content"
+  | "Like video"
+  | "Dislike video"
+  | "Comment on video"
+  | "Watch video";
 
 type AccountOption = {
   id: string;
@@ -12,28 +20,6 @@ type AccountOption = {
   platform: Platform;
   initials: string;
 };
-
-const accountOptions: AccountOption[] = [
-  {
-    id: "maria-studio",
-    name: "@maria.studio",
-    platform: "TikTok",
-    initials: "MS",
-  },
-  { id: "growth-lab", name: "Growth Lab", platform: "YouTube", initials: "GL" },
-  {
-    id: "northstar-co",
-    name: "@northstar.co",
-    platform: "TikTok",
-    initials: "NC",
-  },
-  {
-    id: "creator-weekly",
-    name: "Creator Weekly",
-    platform: "YouTube",
-    initials: "CW",
-  },
-];
 
 const steps = ["Platform", "Action", "Target", "Accounts", "Review"];
 
@@ -43,18 +29,46 @@ function CreateActionView() {
   const [platform, setPlatform] = useState<Platform | "">("");
   const [action, setAction] = useState<ActionType | "">("");
   const [targetUrl, setTargetUrl] = useState("");
+  const [commentText, setCommentText] = useState("");
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [isCreated, setIsCreated] = useState(false);
   const [createdActionId, setCreatedActionId] = useState("");
+  const [accountOptions, setAccountOptions] = useState<AccountOption[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    getAccounts()
+      .then((accounts) =>
+        setAccountOptions(
+          accounts.map((account) => ({
+            id: account.id,
+            name: account.name,
+            platform: account.platform,
+            initials: account.initials,
+          })),
+        ),
+      )
+      .catch(() => setError("Unable to load connected accounts."));
+  }, []);
 
   const availableActions: ActionType[] =
-    platform === "TikTok" ? ["Open content"] : ["Review channel content"];
+    platform === "TikTok"
+      ? ["Open content"]
+      : platform === "Facebook" || platform === "Instagram"
+        ? ["Review channel content"]
+        : [
+            "Review channel content",
+            "Like video",
+            "Dislike video",
+            "Comment on video",
+            "Watch video",
+          ];
   const availableAccounts = accountOptions.filter(
     (account) => account.platform === platform,
   );
 
-  function nextStep() {
+  async function nextStep() {
     setError("");
     if (step === 1 && !platform)
       return setError("Choose a platform to continue.");
@@ -62,25 +76,37 @@ function CreateActionView() {
       return setError("Choose a supported action to continue.");
     if (step === 3 && !isValidUrl(targetUrl))
       return setError("Enter a valid target URL to continue.");
+    if (step === 3 && action === "Comment on video" && !commentText.trim())
+      return setError("Enter the comment text to continue.");
     if (step === 4 && selectedAccounts.length === 0)
       return setError("Select at least one account to continue.");
     if (step === 5) {
-      const actionId = `${(action || "action").toLowerCase().replaceAll(" ", "-")}-${Date.now()}`;
-      addStoredAction({
-        id: actionId,
-        title: action || "Social content action",
-        platform: platform || "TikTok",
-        description: `Run ${action || "the selected action"} for selected accounts.`,
-        targetUrl,
-        accountIds: selectedAccounts,
-        lastRun: "Not run yet",
-        result: "Not run yet",
-        repetitions: 1,
-        likeContent: false,
-        postComment: false,
-      });
-      setCreatedActionId(actionId);
-      setIsCreated(true);
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      try {
+        const savedAction = await createAction({
+          title: action || "Social content action",
+          platform: platform || "TikTok",
+          actionType: action || "Open content",
+          targetUrl,
+          accountIds: selectedAccounts,
+          repetitions: 1,
+          likeContent: false,
+          postComment: false,
+          commentText:
+            action === "Comment on video" ? commentText.trim() : undefined,
+        });
+        setCreatedActionId(savedAction.id);
+        setIsCreated(true);
+      } catch (requestError) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to create this action.",
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
     setStep((currentStep) => Math.min(currentStep + 1, 5));
@@ -92,11 +118,20 @@ function CreateActionView() {
   }
 
   function toggleAccount(id: string) {
-    setSelectedAccounts((current) =>
-      current.includes(id)
+    const singleAccountAction =
+      platform === "YouTube" &&
+      [
+        "Like video",
+        "Dislike video",
+        "Comment on video",
+        "Watch video",
+      ].includes(action);
+    setSelectedAccounts((current) => {
+      if (singleAccountAction) return current.includes(id) ? [] : [id];
+      return current.includes(id)
         ? current.filter((accountId) => accountId !== id)
-        : [...current, id],
-    );
+        : [...current, id];
+    });
   }
 
   function selectPlatform(nextPlatform: Platform) {
@@ -113,7 +148,11 @@ function CreateActionView() {
         ((platform === "TikTok" && url.hostname.includes("tiktok.com")) ||
           (platform === "YouTube" &&
             (url.hostname.includes("youtube.com") ||
-              url.hostname.includes("youtu.be"))))
+              url.hostname.includes("youtu.be"))) ||
+          (platform === "Facebook" && url.hostname.includes("facebook.com")) ||
+          (platform === "Instagram" &&
+            (url.hostname.includes("instagram.com") ||
+              url.hostname.endsWith(".instagram.com"))))
       );
     } catch {
       return false;
@@ -214,6 +253,20 @@ function CreateActionView() {
                 onClick={() => selectPlatform("YouTube")}
                 mark="▶"
               />
+              <ChoiceCard
+                title="Facebook"
+                description="For Facebook pages and profiles"
+                selected={platform === "Facebook"}
+                onClick={() => selectPlatform("Facebook")}
+                mark="f"
+              />
+              <ChoiceCard
+                title="Instagram"
+                description="For Instagram profiles and posts"
+                selected={platform === "Instagram"}
+                onClick={() => selectPlatform("Instagram")}
+                mark="◎"
+              />
             </div>
           )}
           {step === 2 && (
@@ -270,13 +323,35 @@ function CreateActionView() {
               <p className="mt-3 text-xs text-slate-400">
                 The target must be an HTTPS URL from the selected platform.
               </p>
+              {action === "Comment on video" && (
+                <label className="mt-5 block">
+                  <span className="mb-2 block text-sm font-semibold text-slate-700">
+                    Comment text
+                  </span>
+                  <textarea
+                    required
+                    maxLength={1000}
+                    value={commentText}
+                    onChange={(event) => setCommentText(event.target.value)}
+                    className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#2f80ed] focus:ring-4 focus:ring-[#2f80ed]/10"
+                    placeholder="Write the comment to post"
+                  />
+                </label>
+              )}
             </>
           )}
           {step === 4 && (
             <>
               <StepHeading
                 title="Select accounts"
-                description={`Choose which ${platform} accounts should run this action.`}
+                description={
+                  platform === "YouTube" &&
+                  ["Like video", "Dislike video", "Comment on video"].includes(
+                    action,
+                  )
+                    ? "Choose one authorized YouTube account for this action."
+                    : `Choose which ${platform} accounts should run this action.`
+                }
               />
               <div className="mt-6 space-y-3">
                 {availableAccounts.map((account) => (
@@ -347,9 +422,14 @@ function CreateActionView() {
             <button
               type="button"
               onClick={nextStep}
-              className="rounded-xl bg-[#102a43] px-5 py-3 text-sm font-semibold text-white hover:bg-[#183f60]"
+              disabled={isSubmitting}
+              className="rounded-xl bg-[#102a43] px-5 py-3 text-sm font-semibold text-white hover:bg-[#183f60] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {step === 5 ? "Execute action" : "Continue"}
+              {isSubmitting
+                ? "Saving..."
+                : step === 5
+                  ? "Execute action"
+                  : "Continue"}
             </button>
           </div>
         </section>

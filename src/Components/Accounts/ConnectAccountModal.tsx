@@ -7,7 +7,9 @@ type ConnectAccountModalProps = {
 function ConnectAccountModal({ onClose }: ConnectAccountModalProps) {
   const navigate = useNavigate();
 
-  function choosePlatform(platform: "tiktok" | "youtube") {
+  function choosePlatform(
+    platform: "tiktok" | "youtube" | "facebook" | "instagram",
+  ) {
     onClose();
     navigate(`/connect/${platform}`);
   }
@@ -59,6 +61,20 @@ function ConnectAccountModal({ onClose }: ConnectAccountModalProps) {
             mark="▶"
             tone="bg-[#fff0f0] text-[#dc2626]"
             onClick={() => choosePlatform("youtube")}
+          />
+          <PlatformOption
+            name="Facebook"
+            description="Connect browser accounts"
+            mark="f"
+            tone="bg-[#e8f0fe] text-[#1d4ed8]"
+            onClick={() => choosePlatform("facebook")}
+          />
+          <PlatformOption
+            name="Instagram"
+            description="Connect browser accounts"
+            mark="◎"
+            tone="bg-[#fce7f3] text-[#be185d]"
+            onClick={() => choosePlatform("instagram")}
           />
         </div>
 

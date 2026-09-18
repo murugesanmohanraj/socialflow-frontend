@@ -8,6 +8,7 @@ type LoginFormProps = {
   showPassword: boolean;
   onTogglePassword: () => void;
   onForgotPassword: () => void;
+  isSubmitting: boolean;
 };
 
 export function LoginForm({
@@ -16,6 +17,7 @@ export function LoginForm({
   showPassword,
   onTogglePassword,
   onForgotPassword,
+  isSubmitting,
 }: LoginFormProps) {
   return (
     <form className="space-y-5" onSubmit={onSubmit}>
@@ -37,6 +39,7 @@ export function LoginForm({
         <button
           type="button"
           onClick={onForgotPassword}
+          disabled={isSubmitting}
           className="text-sm font-semibold text-[#1976d2] hover:text-[#102a43]"
         >
           Forgot password?
@@ -44,9 +47,17 @@ export function LoginForm({
       </div>
       <button
         type="submit"
+        disabled={isSubmitting}
         className="w-full rounded-xl bg-[#102a43] px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#102a43]/15 transition hover:bg-[#183f60] focus:outline-none focus:ring-4 focus:ring-[#102a43]/20"
       >
-        Sign in
+        {isSubmitting ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            Signing in...
+          </span>
+        ) : (
+          "Sign in"
+        )}
       </button>
     </form>
   );

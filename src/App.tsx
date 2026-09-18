@@ -1,21 +1,35 @@
-import { FormEvent, ReactElement, useState } from "react";
+import { FormEvent, ReactElement, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AuthBrand, AuthMobileBrand } from "./Components/Auth/AuthBrand";
 import { AuthTabs } from "./Components/Auth/AuthTabs";
 import { ForgotPasswordForm } from "./Components/Auth/ForgotPassword/ForgotPasswordForm";
 import { LoginForm } from "./Components/Auth/Login/LoginForm";
 import { RegisterForm } from "./Components/Auth/Register/RegisterForm";
+import ResetPasswordView from "./Components/Auth/ResetPassword/ResetPasswordView";
 import { SuccessMessage } from "./Components/Auth/SuccessMessage";
+import { Toast } from "./Components/Auth/Toast";
 import { AuthMode } from "./Components/Auth/types";
 import CreateActionView from "./Components/Actions/CreateActionView";
 import ActionExecutionView from "./Components/Actions/ActionExecutionView";
 import ActionResultView from "./Components/Actions/ActionResultView";
 import ActivityDetailsView from "./Components/Activity/ActivityDetailsView";
 import AccountDetailsView from "./Components/Accounts/AccountDetailsView";
+import FacebookConnectView from "./Components/Accounts/FacebookConnectView";
+import InstagramConnectView from "./Components/Accounts/InstagramConnectView";
 import OAuthAuthorizationView from "./Components/Accounts/OAuthAuthorizationView";
+import TikTokConnectView from "./Components/Accounts/TikTokConnectView";
 import TikTokWorkflowView from "./Components/Workflow/TikTokWorkflowView";
 import YouTubeWorkflowView from "./Components/Workflow/YouTubeWorkflowView";
+import FacebookBrowserView from "./Components/Workflow/FacebookBrowserView";
+import InstagramBrowserView from "./Components/Workflow/InstagramBrowserView";
 import DashboardOverview from "./Components/Dashboard/DashboardOverview";
+import { AUTH_TOKEN_KEY } from "./services/apiClient";
+import {
+  loginUser,
+  logoutUser,
+  registerUser,
+  requestPasswordReset,
+} from "./services/authApi";
 
 const AUTH_STORAGE_KEY = "socialflow_authenticated";
 
@@ -24,16 +38,30 @@ function App() {
 }
 
 function AuthRouter() {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem(AUTH_STORAGE_KEY) === "true",
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    Boolean(localStorage.getItem(AUTH_TOKEN_KEY)),
   );
 
-  function handleLogin() {
+  useEffect(() => {
+    function handleUnauthorized() {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      setIsAuthenticated(false);
+    }
+
+    window.addEventListener("socialflow:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("socialflow:unauthorized", handleUnauthorized);
+  }, []);
+
+  function handleLogin(token: string) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
     localStorage.setItem(AUTH_STORAGE_KEY, "true");
     setIsAuthenticated(true);
   }
 
   function handleLogout() {
+    void logoutUser().catch(() => undefined);
+    localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setIsAuthenticated(false);
   }
@@ -58,6 +86,7 @@ function AuthRouter() {
         path="/forgot-password"
         element={<AuthPage mode="forgot" isAuthenticated={isAuthenticated} />}
       />
+      <Route path="/reset-password" element={<ResetPasswordView />} />
       <Route
         path="/dashboard"
         element={
@@ -103,6 +132,22 @@ function AuthRouter() {
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <TikTokWorkflowView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/facebook-browser"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <FacebookBrowserView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instagram-browser"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <InstagramBrowserView />
           </ProtectedRoute>
         }
       />
@@ -174,7 +219,7 @@ function AuthRouter() {
         path="/connect/tiktok"
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <OAuthAuthorizationView platform="tiktok" />
+            <TikTokConnectView />
           </ProtectedRoute>
         }
       />
@@ -183,6 +228,22 @@ function AuthRouter() {
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
             <OAuthAuthorizationView platform="youtube" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/connect/facebook"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <FacebookConnectView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/connect/instagram"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <InstagramConnectView />
           </ProtectedRoute>
         }
       />
@@ -213,45 +274,112 @@ function AuthPage({
 }: {
   mode: AuthMode;
   isAuthenticated: boolean;
-  onLogin?: () => void;
+  onLogin?: (token: string) => void;
 }) {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [resetUrl, setResetUrl] = useState<string | undefined>();
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const isRegistering = mode === "register";
   const isForgotPassword = mode === "forgot";
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting) return;
     setError("");
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
     const confirmPassword = String(form.get("confirmPassword") ?? "");
 
-    if (
-      mode === "login" &&
-      (email !== "demo@gmail.com" || password !== "123456")
-    ) {
-      setError("Invalid email or password. Please try again.");
-      return;
-    }
     if (isRegistering && password !== confirmPassword) {
-      setError("Passwords do not match.");
+      showError("Passwords do not match.");
       return;
     }
     if (mode === "login") {
-      onLogin?.();
-      navigate("/dashboard");
+      setIsSubmitting(true);
+      try {
+        const response = await loginUser({ email, password });
+        showSuccess("Signed in successfully. Redirecting...");
+        window.setTimeout(() => {
+          onLogin?.(response.token);
+          navigate("/dashboard");
+          setIsSubmitting(false);
+        }, 650);
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "Invalid email or password. Please try again.";
+        setIsSubmitting(false);
+        setError(message);
+        showError(message);
+      }
       return;
     }
-    setSubmitted(true);
+    if (isRegistering) {
+      setIsSubmitting(true);
+      try {
+        const response = await registerUser({
+          name: String(form.get("name") ?? ""),
+          email,
+          password,
+        });
+        showSuccess("Account created successfully. Redirecting...");
+        window.setTimeout(() => {
+          onLogin?.(response.token);
+          navigate("/dashboard");
+          setIsSubmitting(false);
+        }, 650);
+      } catch (requestError) {
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to create your account. Please try again.";
+        setIsSubmitting(false);
+        setError(message);
+        showError(message);
+      }
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const response = await requestPasswordReset({ email });
+      setResetUrl(response.resetUrl);
+      setSubmitted(true);
+      showSuccess(response.message);
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to request a password reset.";
+      setError(message);
+      showError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function showSuccess(message: string) {
+    setToast({ type: "success", message });
+  }
+
+  function showError(message: string) {
+    setToast({ type: "error", message });
   }
 
   function changeMode(nextMode: AuthMode) {
     setSubmitted(false);
+    setResetUrl(undefined);
     setError("");
+    setToast(null);
+    setIsSubmitting(false);
     setShowPassword(false);
     navigate(
       nextMode === "login"
@@ -269,6 +397,7 @@ function AuthPage({
           onSubmit={handleSubmit}
           error={error}
           onBackToLogin={() => changeMode("login")}
+          isSubmitting={isSubmitting}
         />
       );
     if (isRegistering)
@@ -278,6 +407,7 @@ function AuthPage({
           error={error}
           showPassword={showPassword}
           onTogglePassword={() => setShowPassword((visible) => !visible)}
+          isSubmitting={isSubmitting}
         />
       );
     return (
@@ -287,6 +417,7 @@ function AuthPage({
         showPassword={showPassword}
         onTogglePassword={() => setShowPassword((visible) => !visible)}
         onForgotPassword={() => changeMode("forgot")}
+        isSubmitting={isSubmitting}
       />
     );
   }
@@ -295,6 +426,7 @@ function AuthPage({
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      {toast && <Toast type={toast.type} message={toast.message} />}
       <div className="mx-auto grid min-h-screen max-w-7xl lg:grid-cols-[1.05fr_0.95fr]">
         <AuthBrand />
         <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-10">
@@ -327,6 +459,7 @@ function AuthPage({
             {submitted ? (
               <SuccessMessage
                 mode={mode}
+                resetUrl={resetUrl}
                 onBack={() =>
                   isForgotPassword ? changeMode("login") : setSubmitted(false)
                 }

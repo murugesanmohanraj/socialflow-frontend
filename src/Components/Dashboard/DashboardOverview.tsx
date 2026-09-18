@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ConnectAccountModal from "../Accounts/ConnectAccountModal";
-import {
-  getStoredAccounts,
-  getStoredActivities,
-} from "../../utils/socialflowStorage";
+import { getAccounts } from "../../services/accountsApi";
+import { getCurrentUser } from "../../services/authApi";
+import { getActivities } from "../../services/activityApi";
+import { getDashboardSummary } from "../../services/dashboardApi";
+import { StoredAccount } from "../../utils/socialflowStorage";
 import AccountsView from "./AccountsView";
 import ActionsView from "./ActionsView";
 import ActivityView from "./ActivityView";
@@ -18,11 +19,32 @@ type DashboardOverviewProps = {
 function DashboardOverview({ onLogout }: DashboardOverviewProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [accounts] = useState(getStoredAccounts);
-  const [activities] = useState(getStoredActivities);
+  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  const [activities, setActivities] = useState<
+    Awaited<ReturnType<typeof getActivities>>
+  >([]);
+  const [userName, setUserName] = useState("there");
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [summary, setSummary] = useState<
+    Awaited<ReturnType<typeof getDashboardSummary>>["summary"] | null
+  >(null);
   const activeView = location.pathname.slice(1) || "dashboard";
+
+  useEffect(() => {
+    getAccounts()
+      .then(setAccounts)
+      .catch(() => setAccounts([]));
+    getCurrentUser()
+      .then(({ user }) => setUserName(user.name))
+      .catch(() => undefined);
+    getActivities()
+      .then((items) => setActivities(items.slice(0, 4)))
+      .catch(() => setActivities([]));
+    getDashboardSummary()
+      .then(({ summary: nextSummary }) => setSummary(nextSummary))
+      .catch(() => setSummary(null));
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
@@ -56,7 +78,7 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
                     Overview
                   </p>
                   <h1 className="text-2xl font-semibold tracking-tight text-[#102a43] sm:text-3xl">
-                    Hello, Demo
+                    Hello, {userName}
                   </h1>
                   <p className="mt-2 text-sm text-slate-500">
                     Here&apos;s what&apos;s happening across your social
@@ -75,26 +97,42 @@ function DashboardOverview({ onLogout }: DashboardOverviewProps) {
               <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
                   label="Connected accounts"
-                  value="10"
-                  detail="2 platforms active"
+                  value={summary ? String(summary.connectedAccounts) : "-"}
+                  detail={
+                    summary
+                      ? `${summary.activePlatforms} platforms active`
+                      : "Loading summary"
+                  }
                   accent="bg-[#eaf2fc] text-[#1976d2]"
                 />
                 <StatCard
                   label="Active accounts"
-                  value="8"
-                  detail="80% of your accounts"
+                  value={summary ? String(summary.activeAccounts) : "-"}
+                  detail={
+                    summary
+                      ? `${summary.connectedAccounts ? Math.round((summary.activeAccounts / summary.connectedAccounts) * 100) : 0}% of your accounts`
+                      : "Loading summary"
+                  }
                   accent="bg-[#e8f8f0] text-[#16845b]"
                 />
                 <StatCard
                   label="Actions today"
-                  value="42"
-                  detail="+18% from yesterday"
+                  value={summary ? String(summary.actionsToday) : "-"}
+                  detail={
+                    summary
+                      ? `${summary.successfulToday} successful today`
+                      : "Loading summary"
+                  }
                   accent="bg-[#fff7e6] text-[#b45309]"
                 />
                 <StatCard
                   label="Successful"
-                  value="38"
-                  detail="90.5% completion rate"
+                  value={summary ? String(summary.successfulToday) : "-"}
+                  detail={
+                    summary
+                      ? `${summary.completionRate}% completion rate`
+                      : "Loading summary"
+                  }
                   accent="bg-[#f1eafe] text-[#7c3aed]"
                 />
               </div>

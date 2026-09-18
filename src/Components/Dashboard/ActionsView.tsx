@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  getStoredActions,
-  saveActions,
-  StoredAction,
-} from "../../utils/socialflowStorage";
+import { StoredAction } from "../../utils/socialflowStorage";
+import { deleteAction, getActions } from "../../services/actionsApi";
 import { ViewShell } from "./AccountsView";
 import { EmptyState, ErrorState, LoadingState } from "./ResourceStates";
 
@@ -17,13 +14,9 @@ function ActionsView() {
   function loadActions() {
     setHasError(false);
     setActions(null);
-    window.setTimeout(() => {
-      try {
-        setActions(getStoredActions());
-      } catch {
-        setHasError(true);
-      }
-    }, 300);
+    getActions()
+      .then(setActions)
+      .catch(() => setHasError(true));
   }
 
   useEffect(() => {
@@ -32,11 +25,13 @@ function ActionsView() {
 
   function removeAction(id: string) {
     if (!actions) return;
-    const nextActions = actions.filter((action) => action.id !== id);
-    setActions(nextActions);
-    saveActions(nextActions);
-    setOpenMenuId(null);
-    setActionToRemove(null);
+    deleteAction(id)
+      .then(() => {
+        setActions(actions.filter((action) => action.id !== id));
+        setOpenMenuId(null);
+        setActionToRemove(null);
+      })
+      .catch(() => setHasError(true));
   }
 
   return (
@@ -164,8 +159,8 @@ function ActionsView() {
               Remove this action?
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              This removes the workflow from your local workspace. You can
-              create it again later.
+              This removes the workflow from your workspace. You can create it
+              again later.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button

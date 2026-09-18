@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  getStoredAccounts,
-  StoredAccount,
-} from "../../utils/socialflowStorage";
+import { StoredAccount } from "../../utils/socialflowStorage";
+import { getAccounts } from "../../services/accountsApi";
 import { EmptyState, ErrorState, LoadingState } from "./ResourceStates";
 
 function AccountsView({ onConnectAccount }: { onConnectAccount: () => void }) {
@@ -12,18 +10,14 @@ function AccountsView({ onConnectAccount }: { onConnectAccount: () => void }) {
     StoredAccount[] | null
   >(null);
   const [hasError, setHasError] = useState(false);
-  const filters = ["All", "TikTok", "YouTube"];
+  const filters = ["All", "TikTok", "YouTube", "Facebook", "Instagram"];
 
   function loadAccounts() {
     setHasError(false);
     setConnectedAccounts(null);
-    window.setTimeout(() => {
-      try {
-        setConnectedAccounts(getStoredAccounts());
-      } catch {
-        setHasError(true);
-      }
-    }, 300);
+    getAccounts()
+      .then(setConnectedAccounts)
+      .catch(() => setHasError(true));
   }
 
   useEffect(() => {
@@ -68,7 +62,7 @@ function AccountsView({ onConnectAccount }: { onConnectAccount: () => void }) {
       ) : connectedAccounts.length === 0 ? (
         <EmptyState
           title="No accounts connected"
-          description="Connect your first TikTok or YouTube account to start using Social Media Manager."
+          description="Connect your first TikTok, YouTube, or Facebook account to start using Social Media Manager."
           action={{ label: "Connect account", onClick: onConnectAccount }}
         />
       ) : filteredAccounts?.length === 0 ? (

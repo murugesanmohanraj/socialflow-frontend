@@ -1,67 +1,104 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  getStoredAction,
-  getStoredAccount,
-  addStoredActivity,
-} from "../../utils/socialflowStorage";
+import { getAction, getExecution, runAction } from "../../services/actionsApi";
+import { StoredAction } from "../../utils/socialflowStorage";
 import { ViewShell } from "../Dashboard/AccountsView";
-import { EmptyState } from "../Dashboard/ResourceStates";
+import DashboardSidebar from "../Dashboard/DashboardSidebar";
+import { EmptyState, LoadingState } from "../Dashboard/ResourceStates";
 
-type ExecutionStatus = "Pending" | "Running" | "Completed";
+type ExecutionStatus = "Pending" | "Running" | "Completed" | "Failed";
 
 function ActionExecutionView() {
   const navigate = useNavigate();
   const { actionId } = useParams();
-  const action = getStoredAction(actionId);
-  const executionAccounts = useMemo(
-    () =>
-      action?.accountIds
-        .map((accountId) => getStoredAccount(accountId))
-        .filter((account): account is NonNullable<typeof account> =>
-          Boolean(account),
-        ) ?? [],
-    [action],
-  );
-  const executionAccountCount = executionAccounts.length;
-  const [completedCount, setCompletedCount] = useState(0);
-  const [activityLogged, setActivityLogged] = useState(false);
+  const [action, setAction] = useState<StoredAction | null>(null);
+  const [execution, setExecution] = useState<
+    Awaited<ReturnType<typeof getExecution>>["execution"] | null
+  >(null);
+  const [hasError, setHasError] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const startPromiseRef = useRef<Promise<
+    Awaited<ReturnType<typeof runAction>>
+  > | null>(null);
 
-  useEffect(() => {
-    if (completedCount >= executionAccountCount) return undefined;
-    const timer = window.setTimeout(
-      () => setCompletedCount((count) => count + 1),
-      900,
-    );
-    return () => window.clearTimeout(timer);
-  }, [completedCount, executionAccountCount]);
-
-  const isComplete = completedCount === executionAccountCount;
-  const progress = Math.round((completedCount / executionAccountCount) * 100);
-
-  useEffect(() => {
-    if (!action || !isComplete || activityLogged) return;
-    executionAccounts.forEach((account) => {
-      const failed = account.status === "Needs attention";
-      addStoredActivity({
-        id: `${action.id}-${account.id}`,
-        date: "Today, 10:26 AM",
-        account: account.name,
-        platform: account.platform,
-        action: action.title,
-        status: failed ? "Failed" : "Success",
-        target: action.targetUrl,
-        duration: `${action.repetitions ?? 1}m 14s`,
-        message: failed
-          ? "Authorization expired"
-          : `${action.title} completed successfully`,
-      });
-    });
-    setActivityLogged(true);
-  }, [action, activityLogged, executionAccounts, isComplete]);
-
-  if (!action || executionAccounts.length === 0) {
+  function renderPage(content: React.ReactNode) {
     return (
+      <main className="min-h-screen bg-[#f5f7fb] text-slate-900">
+        <div className="flex min-h-screen">
+          <DashboardSidebar
+            onLogout={() => undefined}
+            isMobileOpen={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
+          />
+          <section className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6 lg:px-12">
+            <div className="mb-6 flex items-center justify-between md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open navigation"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-[#102a43] shadow-sm"
+              >
+                ☰
+              </button>
+              <span className="text-sm font-semibold text-[#102a43]">
+                Actions
+              </span>
+              <span className="h-11 w-11" />
+            </div>
+            {content}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  useEffect(() => {
+    if (!actionId) return;
+    let cancelled = false;
+    async function start() {
+      try {
+        const loadedAction = await getAction(actionId as string);
+        if (!startPromiseRef.current) {
+          startPromiseRef.current = runAction(loadedAction.id);
+        }
+        const started = await startPromiseRef.current;
+        if (!cancelled) setAction(loadedAction);
+        const poll = async () => {
+          const latest = await getExecution(started.execution._id);
+          if (cancelled) return;
+          setExecution(latest.execution);
+          if (
+            latest.execution.status === "queued" ||
+            latest.execution.status === "running"
+          ) {
+            window.setTimeout(poll, 1000);
+          }
+        };
+        await poll();
+      } catch {
+        if (!cancelled) setHasError(true);
+      }
+    }
+    void start();
+    return () => {
+      cancelled = true;
+    };
+  }, [actionId]);
+
+  const executionAccounts = execution?.items ?? [];
+  const completedCount = executionAccounts.filter(
+    (item) => item.status === "completed" || item.status === "failed",
+  ).length;
+  const executionAccountCount = executionAccounts.length;
+  const isComplete =
+    execution?.status === "completed" || execution?.status === "failed";
+  const progress =
+    executionAccountCount === 0
+      ? 0
+      : Math.round((completedCount / executionAccountCount) * 100);
+
+  if (hasError) {
+    return renderPage(
       <div className="mx-auto w-full max-w-6xl">
         <EmptyState
           title="Action data unavailable"
@@ -71,11 +108,19 @@ function ActionExecutionView() {
             onClick: () => navigate("/actions"),
           }}
         />
-      </div>
+      </div>,
     );
   }
 
-  return (
+  if (!action || !execution) {
+    return renderPage(
+      <div className="mx-auto w-full max-w-6xl">
+        <LoadingState label="Starting action execution..." />
+      </div>,
+    );
+  }
+
+  return renderPage(
     <div className="mx-auto w-full max-w-6xl">
       <ViewShell
         eyebrow="Actions / Execution"
@@ -150,11 +195,11 @@ function ActionExecutionView() {
             </div>
             {executionAccounts.map((account, index) => (
               <ExecutionRow
-                key={account.name}
-                name={account.name}
-                platform={account.platform}
-                initials={account.initials}
-                status={getStatus(index, completedCount)}
+                key={account.accountId}
+                name={account.accountName}
+                platform={action.platform}
+                initials={account.accountName.slice(0, 2).toUpperCase()}
+                status={getStatus(executionAccounts[index].status)}
               />
             ))}
           </div>
@@ -169,7 +214,11 @@ function ActionExecutionView() {
             {isComplete && (
               <button
                 type="button"
-                onClick={() => navigate(`/actions/result/${action.id}`)}
+                onClick={() =>
+                  navigate(
+                    `/actions/result/${action.id}?executionId=${execution._id}`,
+                  )
+                }
                 className="w-full rounded-xl bg-[#102a43] px-5 py-3 text-sm font-semibold text-white hover:bg-[#183f60] sm:w-auto"
               >
                 View results
@@ -178,24 +227,25 @@ function ActionExecutionView() {
           </div>
         </section>
       </ViewShell>
-    </div>
+    </div>,
   );
 }
 
-function getStatus(index: number, completedCount: number): ExecutionStatus {
-  if (index < completedCount) return "Completed";
-  if (index === completedCount) return "Running";
+function getStatus(status: string): ExecutionStatus {
+  if (status === "completed") return "Completed";
+  if (status === "failed") return "Failed";
+  if (status === "running") return "Running";
   return "Pending";
 }
 function ExecutionRow({
   name,
   platform,
-  initials,
+  initials = "SM",
   status,
 }: {
   name: string;
   platform: string;
-  initials: string;
+  initials?: string;
   status: ExecutionStatus;
 }) {
   return (

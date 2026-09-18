@@ -1,64 +1,33 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState, ErrorState, LoadingState } from "./ResourceStates";
 import { ViewShell } from "./AccountsView";
-import { getStoredActivities } from "../../utils/socialflowStorage";
-
-const activityRows = [
-  {
-    id: "maria-open-content",
-    date: "Today, 10:24 AM",
-    account: "@maria.studio",
-    platform: "TikTok",
-    action: "Open content",
-    status: "Success",
-  },
-  {
-    id: "growth-review-content",
-    date: "Today, 9:58 AM",
-    account: "Growth Lab",
-    platform: "YouTube",
-    action: "Review channel content",
-    status: "Success",
-  },
-  {
-    id: "northstar-open-content",
-    date: "Yesterday, 4:12 PM",
-    account: "@northstar.co",
-    platform: "TikTok",
-    action: "Open content",
-    status: "Failed",
-  },
-  {
-    id: "creator-review-content",
-    date: "Sep 07, 11:30 AM",
-    account: "Creator Weekly",
-    platform: "YouTube",
-    action: "Review channel content",
-    status: "Success",
-  },
-];
+import { getActivities } from "../../services/activityApi";
 
 function ActivityView() {
-  const [rows, setRows] = useState<typeof activityRows | null>(null);
+  const [rows, setRows] = useState<Awaited<
+    ReturnType<typeof getActivities>
+  > | null>(null);
   const [statusFilter, setStatusFilter] = useState("All status");
   const [hasError, setHasError] = useState(false);
 
-  function loadActivity() {
+  const loadActivity = useCallback(() => {
     setHasError(false);
     setRows(null);
-    window.setTimeout(() => {
-      try {
-        setRows(getStoredActivities());
-      } catch {
-        setHasError(true);
-      }
-    }, 300);
-  }
+    getActivities(
+      statusFilter === "Success"
+        ? "success"
+        : statusFilter === "Failed"
+          ? "failed"
+          : undefined,
+    )
+      .then(setRows)
+      .catch(() => setHasError(true));
+  }, [statusFilter]);
 
   useEffect(() => {
     loadActivity();
-  }, []);
+  }, [loadActivity]);
 
   const filteredRows = rows?.filter(
     (row) => statusFilter === "All status" || row.status === statusFilter,

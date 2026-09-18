@@ -1,9 +1,10 @@
-import { ComponentType, SVGProps } from "react";
+import { ComponentType, SVGProps, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import socialflowLogo from "../../Assets/Images/socialflow.png";
+import { getCurrentUser } from "../../services/authApi";
 
 type DashboardSidebarProps = {
-  onLogout: () => void;
+  onLogout?: () => void;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
 };
@@ -104,11 +105,41 @@ const SettingsIcon: NavigationIcon = (props) => (
   </svg>
 );
 
+const FacebookIcon: NavigationIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+    <path d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V4a22 22 0 0 0-2.4-.1c-2.4 0-4 1.5-4 4.1V10H8v3h2.4v8h3.1Z" />
+  </svg>
+);
+
+const InstagramIcon: NavigationIcon = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    {...props}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="4.1" />
+    <circle cx="17.4" cy="6.6" r="1.2" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 const navigationItems: { label: string; path: string; icon: NavigationIcon }[] =
   [
     { label: "Dashboard", path: "/dashboard", icon: DashboardIcon },
     { label: "Accounts", path: "/accounts", icon: AccountsIcon },
     { label: "YouTube Workflow", path: "/youtube-workflow", icon: YouTubeIcon },
+    {
+      label: "Facebook Workflow",
+      path: "/facebook-browser",
+      icon: FacebookIcon,
+    },
+    {
+      label: "Instagram Workflow",
+      path: "/instagram-browser",
+      icon: InstagramIcon,
+    },
     { label: "TikTok Workflow", path: "/tiktok-workflow", icon: TikTokIcon },
     { label: "Actions", path: "/actions", icon: ActionsIcon },
     { label: "Activity", path: "/activity", icon: ActivityIcon },
@@ -120,6 +151,26 @@ function DashboardSidebar({
   isMobileOpen = false,
   onCloseMobile = () => undefined,
 }: DashboardSidebarProps) {
+  const [user, setUser] = useState<{ name: string; email: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    getCurrentUser()
+      .then(({ user: currentUser }) => setUser(currentUser))
+      .catch(() => setUser(null));
+  }, []);
+
+  const displayName = user?.name ?? "Loading profile...";
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("")
+    : "...";
+
   return (
     <>
       {isMobileOpen && (
@@ -131,7 +182,11 @@ function DashboardSidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-5 py-6 transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-screen md:max-h-screen md:overflow-hidden md:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-5 py-6 transition-all duration-200 ${
+          isMobileOpen
+            ? "translate-x-0 opacity-100"
+            : "-translate-x-full opacity-0"
+        } md:sticky md:top-0 md:translate-x-0 md:opacity-100 md:z-auto md:h-screen md:max-h-screen md:overflow-hidden md:inset-auto md:left-auto md:transform-none`}
       >
         <div className="mb-12 flex items-center gap-3 text-lg font-semibold tracking-tight text-[#102a43]">
           <img
@@ -169,18 +224,20 @@ function DashboardSidebar({
         <div className="mt-auto border-t border-slate-100 pt-5">
           <div className="mb-4 flex items-center gap-3 px-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d8f5e7] text-xs font-bold text-[#16845b]">
-              DM
+              {initials}
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-[#102a43]">
-                Demo Member
+                {displayName}
               </p>
-              <p className="truncate text-xs text-slate-400">demo@gmail.com</p>
+              <p className="truncate text-xs text-slate-400">
+                {user?.email ?? "Loading..."}
+              </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => onLogout?.()}
             className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"
           >
             Log out
