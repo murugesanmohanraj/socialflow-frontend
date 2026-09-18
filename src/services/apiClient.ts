@@ -2,6 +2,10 @@ const API_BASE_URL =
   process.env.REACT_APP_API_URL ??
   "https://socialflow-backend-1.onrender.com/api";
 
+if (!API_BASE_URL) {
+  throw new Error("REACT_APP_API_URL is not configured");
+}
+
 export const AUTH_TOKEN_KEY = "socialflow_access_token";
 
 export class ApiError extends Error {
