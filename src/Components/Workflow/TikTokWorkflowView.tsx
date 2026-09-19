@@ -8,7 +8,7 @@ import DashboardSidebar from "../Dashboard/DashboardSidebar";
 function TikTokWorkflowView() {
   const navigate = useNavigate();
   const [url, setUrl] = useState("");
-  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>(
     [],
   );
@@ -18,7 +18,10 @@ function TikTokWorkflowView() {
   const [error, setError] = useState("");
   const [likeVideo, setLikeVideo] = useState(false);
   const [postComment, setPostComment] = useState(false);
-  const [commentText, setCommentText] = useState("");
+  const [preparedComments, setPreparedComments] = useState<string[]>([]);
+  const [commentAssignments, setCommentAssignments] = useState<
+    Record<string, number>
+  >({});
   const [view, setView] = useState<"form" | "running" | "complete">("form");
   const [result, setResult] = useState<{
     url: string;
@@ -38,7 +41,8 @@ function TikTokWorkflowView() {
             name: account.name,
           })),
         );
-        setSelectedAccountId(tiktokAccounts[0]?.id ?? "");
+        setSelectedAccountIds([]);
+        setPreparedComments(tiktokAccounts.map(() => ""));
       })
       .catch(() => setError("Unable to load connected TikTok accounts."))
       .finally(() => setIsLoadingAccounts(false));
@@ -85,7 +89,7 @@ function TikTokWorkflowView() {
       setError("Enter a valid TikTok video URL.");
       return;
     }
-    if (!selectedAccountId) {
+    if (selectedAccountIds.length === 0) {
       setError("Select at least one TikTok account.");
       return;
     }
@@ -93,8 +97,13 @@ function TikTokWorkflowView() {
       setError("Choose at least one action.");
       return;
     }
-    if (postComment && !commentText.trim()) {
-      setError("Comment text is required when comment is selected.");
+    if (
+      postComment &&
+      selectedAccountIds.some(
+        (id) => !preparedComments[commentAssignments[id] ?? 0]?.trim(),
+      )
+    ) {
+      setError("Prepare and assign a comment to every selected account.");
       return;
     }
 
@@ -109,13 +118,28 @@ function TikTokWorkflowView() {
             ? "like"
             : "comment";
 
-      const response = await openTikTokPost(
-        url.trim(),
-        selectedAccountId,
-        selectedAction,
-        postComment ? commentText.trim() : undefined,
+      const responses = await Promise.all(
+        selectedAccountIds.map((accountId) =>
+          openTikTokPost(
+            url.trim(),
+            accountId,
+            selectedAction,
+            postComment
+              ? preparedComments[commentAssignments[accountId] ?? 0]?.trim() ||
+                  "good"
+              : undefined,
+          ),
+        ),
       );
-      setResult(response);
+      setResult({
+        ...responses[0],
+        message: responses
+          .map(
+            (response, index) =>
+              `${accounts.find((account) => account.id === selectedAccountIds[index])?.name ?? "Account"}: ${response.message}`,
+          )
+          .join(" "),
+      });
       setView("complete");
     } catch (requestError) {
       setError(
@@ -130,7 +154,7 @@ function TikTokWorkflowView() {
 
   if (view === "running") {
     const selectedAccount =
-      accounts.find((item) => item.id === selectedAccountId) ?? null;
+      accounts.find((item) => item.id === selectedAccountIds[0]) ?? null;
     const actionLabel =
       likeVideo && postComment
         ? "Like + comment"
@@ -254,7 +278,7 @@ function TikTokWorkflowView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedAccountId(accounts[0]?.id ?? "")}
+                  onClick={() => setSelectedAccountIds([])}
                   className="rounded-xl bg-[#6b21a8] px-4 py-3 text-sm font-semibold text-white hover:bg-[#581c87]"
                 >
                   Use same account
@@ -344,7 +368,7 @@ function TikTokWorkflowView() {
                   Select action
                 </h3>
                 <p className="text-sm text-slate-500">
-                  Choose the browser action for the connected account.
+                  Choose what each selected TikTok account should do.
                 </p>
               </div>
             </div>
@@ -374,17 +398,29 @@ function TikTokWorkflowView() {
             </div>
 
             {postComment && (
-              <label className="mt-5 block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">
-                  Comment text
-                </span>
-                <textarea
-                  value={commentText}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#2f80ed] focus:ring-4 focus:ring-[#2f80ed]/10"
-                  placeholder="Write the comment to post"
-                />
-              </label>
+              <div className="mt-6 space-y-3">
+                <p className="text-sm font-semibold text-[#102a43]">
+                  Prepared comments
+                </p>
+                <p className="text-xs text-slate-500">
+                  Prepare one comment for each connected TikTok account.
+                </p>
+                {accounts.map((account, index) => (
+                  <input
+                    key={account.id}
+                    value={preparedComments[index] ?? ""}
+                    onChange={(event) =>
+                      setPreparedComments((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? event.target.value : item,
+                        ),
+                      )
+                    }
+                    placeholder={`Comment for ${account.name}`}
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#2f80ed]"
+                  />
+                ))}
+              </div>
             )}
           </section>
 
@@ -395,35 +431,70 @@ function TikTokWorkflowView() {
               </span>
               <div>
                 <h3 className="text-lg font-semibold text-[#102a43]">
-                  Choose account
+                  Accounts
                 </h3>
                 <p className="text-sm text-slate-500">
-                  Use the connected TikTok account to execute the browser
-                  action.
+                  Select the TikTok accounts that should participate in this
+                  workflow.
                 </p>
               </div>
             </div>
             <div className="space-y-3">
-              {accounts.map((account) => (
-                <label
-                  key={account.id}
-                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${selectedAccountId === account.id ? "border-[#2f80ed] bg-[#eaf2fc]" : "border-slate-200 hover:border-[#2f80ed]"}`}
-                >
-                  <input
-                    type="radio"
-                    name="tiktok-account"
-                    checked={selectedAccountId === account.id}
-                    onChange={() => setSelectedAccountId(account.id)}
-                    className="h-4 w-4 accent-[#6b21a8]"
-                  />
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
-                    {account.name.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="text-sm font-semibold text-[#102a43]">
-                    {account.name}
-                  </span>
-                </label>
-              ))}
+              {accounts.map((account) => {
+                const selected = selectedAccountIds.includes(account.id);
+                return (
+                  <div key={account.id}>
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${selected ? "border-[#d66b6b] bg-[#fff7f7]" : "border-slate-200"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(event) =>
+                          setSelectedAccountIds((current) =>
+                            event.target.checked
+                              ? [...current, account.id]
+                              : current.filter((id) => id !== account.id),
+                          )
+                        }
+                        className="h-4 w-4 accent-[#6b21a8]"
+                      />
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
+                        {account.name.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="text-sm font-semibold text-[#102a43]">
+                        {account.name}
+                      </span>
+                      <span className="ml-auto rounded-full bg-[#e8f8f0] px-2.5 py-1 text-xs font-semibold text-[#16845b]">
+                        Ready
+                      </span>
+                    </label>
+                    {selected && postComment && (
+                      <select
+                        value={commentAssignments[account.id] ?? 0}
+                        onChange={(event) =>
+                          setCommentAssignments((current) => ({
+                            ...current,
+                            [account.id]: Number(event.target.value),
+                          }))
+                        }
+                        className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        {preparedComments.map((comment, index) => (
+                          <option
+                            key={index}
+                            value={index}
+                            disabled={!comment.trim()}
+                          >
+                            Comment {index + 1}:{" "}
+                            {comment.trim() || "Not prepared"}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
 
@@ -433,16 +504,16 @@ function TikTokWorkflowView() {
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
-              className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-[#102a43]"
+              className="w-full rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-[#102a43] sm:w-auto"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isOpening}
-              className="rounded-xl bg-[#6b21a8] px-5 py-3 text-sm font-semibold text-white hover:bg-[#581c87] disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={isOpening || selectedAccountIds.length === 0}
+              className="w-full rounded-xl bg-[#dc0000] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#b80000] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isOpening ? "Running..." : "Execute action"}
+              {isOpening ? "Starting workflow..." : "Start Workflow"}
             </button>
           </div>
         </form>

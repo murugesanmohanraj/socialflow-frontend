@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import { getAccounts } from "../../services/accountsApi";
-import { openInstagramPost } from "../../services/instagramBrowserApi";
+import {
+  openInstagramPost,
+  requestInstagramVerificationCode,
+  submitInstagramVerificationCode,
+} from "../../services/instagramBrowserApi";
+
 import { ViewShell } from "../Dashboard/AccountsView";
 import DashboardSidebar from "../Dashboard/DashboardSidebar";
 
 function InstagramBrowserView() {
   const [url, setUrl] = useState("");
-  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>(
     [],
   );
@@ -17,6 +22,15 @@ function InstagramBrowserView() {
   const [likePost, setLikePost] = useState(false);
   const [postComment, setPostComment] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [preparedComments, setPreparedComments] = useState<string[]>([]);
+  const [commentAssignments, setCommentAssignments] = useState<
+    Record<string, number>
+  >({});
+  const [verificationCode, setVerificationCode] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [isSubmittingVerification, setIsSubmittingVerification] =
+    useState(false);
+  const [isRequestingNewCode, setIsRequestingNewCode] = useState(false);
   const [view, setView] = useState<"form" | "running" | "complete">("form");
   const [result, setResult] = useState<{
     url: string;
@@ -36,7 +50,8 @@ function InstagramBrowserView() {
             name: account.name,
           })),
         );
-        setSelectedAccountId(instagramAccounts[0]?.id ?? "");
+        setPreparedComments(instagramAccounts.map(() => ""));
+        setSelectedAccountIds([]);
       })
       .catch(() => setError("Unable to load connected Instagram accounts."))
       .finally(() => setIsLoadingAccounts(false));
@@ -77,13 +92,14 @@ function InstagramBrowserView() {
     event.preventDefault();
     setError("");
     setResult(null);
+    setNeedsVerification(false);
     setView("form");
 
     if (!url.trim()) {
       setError("Enter a valid Instagram post URL.");
       return;
     }
-    if (!selectedAccountId) {
+    if (selectedAccountIds.length === 0) {
       setError("Select at least one Instagram account.");
       return;
     }
@@ -91,8 +107,14 @@ function InstagramBrowserView() {
       setError("Choose at least one action.");
       return;
     }
-    if (postComment && !commentText.trim()) {
-      setError("Comment text is required when comment is selected.");
+    if (
+      postComment &&
+      selectedAccountIds.some(
+        (accountId) =>
+          !preparedComments[commentAssignments[accountId] ?? 0]?.trim(),
+      )
+    ) {
+      setError("Prepare and assign a comment to every selected account.");
       return;
     }
 
@@ -109,11 +131,27 @@ function InstagramBrowserView() {
 
       const response = await openInstagramPost(
         url.trim(),
-        selectedAccountId,
+        selectedAccountIds,
         selectedAction,
         postComment ? commentText.trim() || "good" : undefined,
+        selectedAccountIds.map((accountId) => ({
+          accountId,
+          commentText:
+            preparedComments[commentAssignments[accountId] ?? 0]?.trim() ||
+            commentText.trim(),
+        })),
       );
-      setResult(response);
+      const firstResult = response.results[0];
+      if (response.results.some((item) => item.verificationRequired)) {
+        setNeedsVerification(true);
+        setView("form");
+        return;
+      }
+      setResult({
+        url: firstResult?.url ?? url.trim(),
+        title: firstResult?.title ?? "Instagram workflow complete",
+        message: response.message,
+      });
       setView("complete");
     } catch (requestError) {
       setError(
@@ -126,9 +164,53 @@ function InstagramBrowserView() {
     }
   }
 
+  async function handleVerificationSubmit() {
+    setError("");
+
+    if (!verificationCode.trim()) {
+      setError("Enter the Instagram verification code.");
+      return;
+    }
+
+    setIsSubmittingVerification(true);
+    try {
+      await submitInstagramVerificationCode(
+        selectedAccountIds[0] ?? "",
+        verificationCode.trim(),
+      );
+      setVerificationCode("");
+      setNeedsVerification(false);
+      setError("");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to submit the Instagram verification code.",
+      );
+    } finally {
+      setIsSubmittingVerification(false);
+    }
+  }
+
+  async function handleRequestNewCode() {
+    setError("");
+    setIsRequestingNewCode(true);
+    try {
+      await requestInstagramVerificationCode(selectedAccountIds[0] ?? "");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to request a new Instagram verification code.",
+      );
+    } finally {
+      setIsRequestingNewCode(false);
+    }
+  }
+
   if (view === "running") {
     const selectedAccount =
-      accounts.find((item) => item.id === selectedAccountId) ?? null;
+      accounts.find((item) => item.id === selectedAccountIds[0]) ?? null;
     const actionLabel =
       likePost && postComment
         ? "Like + comment"
@@ -252,7 +334,11 @@ function InstagramBrowserView() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedAccountId(accounts[0]?.id ?? "")}
+                  onClick={() =>
+                    setSelectedAccountIds(
+                      accounts.length ? [accounts[0].id] : [],
+                    )
+                  }
                   className="rounded-xl bg-[#be185d] px-4 py-3 text-sm font-semibold text-white hover:bg-[#9d174d]"
                 >
                   Use same account
@@ -266,107 +352,262 @@ function InstagramBrowserView() {
   }
 
   return renderPage(
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="mx-auto w-full max-w-6xl">
       <ViewShell
         eyebrow="Instagram / Workflow"
         title="Instagram engagement workflow"
-        description="Prepare an Instagram post workflow and assign the action to the selected account."
+        description="Prepare one post workflow and assign it to the participating Instagram accounts."
       >
         <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">
-                  Post URL
-                </span>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+            <Step
+              number="1"
+              title="Target post"
+              description="Enter the exact URL of the Instagram post to process."
+            >
+              <label className="block text-sm font-semibold text-slate-700">
+                Instagram post URL
                 <input
+                  required
                   value={url}
                   onChange={(event) => setUrl(event.target.value)}
                   placeholder="https://www.instagram.com/p/...."
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#be185d] focus:ring-4 focus:ring-[#fbcfe8]"
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none placeholder:text-slate-400 focus:border-[#be185d] focus:ring-4 focus:ring-[#be185d]/10"
                 />
               </label>
+            </Step>
+          </section>
 
-              <div>
-                <span className="mb-2 block text-sm font-semibold text-slate-700">
-                  Account
-                </span>
-                <select
-                  value={selectedAccountId}
-                  onChange={(event) => setSelectedAccountId(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#be185d] focus:ring-4 focus:ring-[#fbcfe8]"
-                  disabled={isLoadingAccounts || accounts.length === 0}
-                >
-                  {accounts.length === 0 ? (
-                    <option value="">No connected Instagram accounts</option>
-                  ) : (
-                    accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4">
-                <input
-                  type="checkbox"
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+            <Step
+              number="2"
+              title="Engagement actions"
+              description="Choose what each selected Instagram account should do."
+            >
+              <div className="space-y-3">
+                <CheckRow
                   checked={likePost}
-                  onChange={(event) => setLikePost(event.target.checked)}
-                  className="h-4 w-4 accent-[#be185d]"
+                  onChange={() => setLikePost((value) => !value)}
+                  label="Like post"
                 />
-                <span className="text-sm font-semibold text-[#102a43]">
-                  Like post
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4">
-                <input
-                  type="checkbox"
+                <CheckRow
                   checked={postComment}
-                  onChange={(event) => setPostComment(event.target.checked)}
-                  className="h-4 w-4 accent-[#be185d]"
+                  onChange={() => setPostComment((value) => !value)}
+                  label="Post comment"
                 />
-                <span className="text-sm font-semibold text-[#102a43]">
-                  Comment
-                </span>
-              </label>
-            </div>
+              </div>
+              {postComment && (
+                <div className="mt-6 space-y-3">
+                  <p className="text-sm font-semibold text-[#102a43]">
+                    Prepared comments
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Prepare one comment for each connected Instagram account.
+                  </p>
+                  {accounts.map((account, index) => (
+                    <input
+                      key={account.id}
+                      value={preparedComments[index] ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setPreparedComments((current) =>
+                          current.map((item, itemIndex) =>
+                            itemIndex === index ? value : item,
+                          ),
+                        );
+                        if (index === 0) setCommentText(value);
+                      }}
+                      placeholder={`Comment for ${account.name}`}
+                      maxLength={1000}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#be185d]"
+                    />
+                  ))}
+                </div>
+              )}
+            </Step>
+          </section>
 
-            {postComment && (
-              <label className="mt-6 block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">
-                  Comment text
-                </span>
-                <textarea
-                  value={commentText}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#be185d] focus:ring-4 focus:ring-[#fbcfe8]"
-                  placeholder="Write the comment to post"
-                />
-              </label>
-            )}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+            <Step
+              number="3"
+              title="Accounts"
+              description="Select the Instagram accounts that should participate in this workflow."
+            >
+              <div className="space-y-3">
+                {accounts.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 p-4 text-sm text-slate-500">
+                    No connected Instagram accounts
+                  </p>
+                ) : (
+                  accounts.map((account) => {
+                    const selected = selectedAccountIds.includes(account.id);
+                    return (
+                      <div key={account.id}>
+                        <label
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 ${selected ? "border-[#d66b6b] bg-[#fff7f7]" : "border-slate-200"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={(event) =>
+                              setSelectedAccountIds((current) =>
+                                event.target.checked
+                                  ? [...current, account.id]
+                                  : current.filter((id) => id !== account.id),
+                              )
+                            }
+                            className="h-4 w-4 accent-[#be185d]"
+                          />
+                          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#fce7f3] text-xs font-bold text-[#be185d]">
+                            {account.name.slice(0, 2).toUpperCase()}
+                          </span>
+                          <span className="text-sm font-semibold text-[#102a43]">
+                            {account.name}
+                          </span>
+                          <span className="ml-auto rounded-full bg-[#e8f8f0] px-2.5 py-1 text-xs font-semibold text-[#16845b]">
+                            Ready
+                          </span>
+                        </label>
+                        {selected && postComment && (
+                          <select
+                            value={commentAssignments[account.id] ?? 0}
+                            onChange={(event) =>
+                              setCommentAssignments((current) => ({
+                                ...current,
+                                [account.id]: Number(event.target.value),
+                              }))
+                            }
+                            className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#be185d]"
+                          >
+                            {preparedComments.map((comment, index) => (
+                              <option
+                                key={index}
+                                value={index}
+                                disabled={!comment.trim()}
+                              >
+                                Comment {index + 1}:{" "}
+                                {comment.trim() || "Not prepared"}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </Step>
+          </section>
 
-            {error ? (
-              <p className="mt-4 text-sm font-medium text-red-600">{error}</p>
-            ) : null}
-
-            <div className="mt-8 flex justify-end">
-              <button
-                type="submit"
-                disabled={isOpening || isLoadingAccounts}
-                className="rounded-xl bg-[#be185d] px-5 py-3 text-sm font-semibold text-white hover:bg-[#9d174d] disabled:cursor-not-allowed disabled:opacity-70"
+          {needsVerification && (
+            <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm sm:p-8">
+              <Step
+                number="4"
+                title="Instagram verification"
+                description="Enter the code shown in the open Instagram browser session."
               >
-                {isOpening ? "Running..." : "Run workflow"}
-              </button>
-            </div>
-          </div>
+                <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold text-amber-900">
+                      Instagram verification code
+                    </span>
+                    <input
+                      value={verificationCode}
+                      onChange={(event) =>
+                        setVerificationCode(event.target.value)
+                      }
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                      className="w-full rounded-xl border border-amber-300 bg-white px-4 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+                      placeholder="Enter the code sent by Instagram"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void handleVerificationSubmit()}
+                    disabled={isSubmittingVerification}
+                    className="mt-4 rounded-xl bg-amber-600 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-70"
+                  >
+                    {isSubmittingVerification ? "Submitting..." : "Submit code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRequestNewCode()}
+                    disabled={isRequestingNewCode}
+                    className="mt-3 rounded-xl border border-amber-300 px-5 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-70"
+                  >
+                    {isRequestingNewCode ? "Requesting..." : "Get a new code"}
+                  </button>
+                </div>
+              </Step>
+            </section>
+          )}
+
+          {error ? (
+            <p className="rounded-xl bg-[#fff0f0] p-4 text-sm font-medium text-red-600">
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={isOpening || isLoadingAccounts}
+            className="w-full rounded-xl bg-[#dc0000] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#b80000] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isOpening ? "Starting workflow..." : "Start Workflow"}
+          </button>
         </form>
       </ViewShell>
     </div>,
+  );
+}
+
+function Step({
+  number,
+  title,
+  description,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-start gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#fce7f3] text-sm font-bold text-[#be185d]">
+          {number}
+        </span>
+        <div>
+          <h2 className="text-lg font-semibold text-[#102a43]">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+      </div>
+      <div className="mt-5">{children}</div>
+    </div>
+  );
+}
+
+function CheckRow({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-700">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="h-4 w-4 accent-[#be185d]"
+      />
+      {label}
+    </label>
   );
 }
 

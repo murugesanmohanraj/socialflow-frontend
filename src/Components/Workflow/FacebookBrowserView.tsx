@@ -6,7 +6,7 @@ import DashboardSidebar from "../Dashboard/DashboardSidebar";
 
 function FacebookBrowserView() {
   const [url, setUrl] = useState("");
-  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>(
     [],
   );
@@ -16,7 +16,10 @@ function FacebookBrowserView() {
   const [error, setError] = useState("");
   const [likePost, setLikePost] = useState(false);
   const [postComment, setPostComment] = useState(false);
-  const [commentText, setCommentText] = useState("");
+  const [preparedComments, setPreparedComments] = useState<string[]>([]);
+  const [commentAssignments, setCommentAssignments] = useState<
+    Record<string, number>
+  >({});
   const [view, setView] = useState<"form" | "running" | "complete">("form");
   const [result, setResult] = useState<{
     url: string;
@@ -38,7 +41,8 @@ function FacebookBrowserView() {
             name: account.name,
           })),
         );
-        setSelectedAccountId(facebookAccounts[0]?.id ?? "");
+        setSelectedAccountIds([]);
+        setPreparedComments(facebookAccounts.map(() => ""));
       })
       .catch(() => setError("Unable to load connected Facebook accounts."))
       .finally(() => setIsLoadingAccounts(false));
@@ -84,7 +88,7 @@ function FacebookBrowserView() {
       setError("Enter a valid Facebook post URL.");
       return;
     }
-    if (!selectedAccountId) {
+    if (selectedAccountIds.length === 0) {
       setError("Select at least one Facebook account.");
       return;
     }
@@ -92,8 +96,13 @@ function FacebookBrowserView() {
       setError("Choose at least one action.");
       return;
     }
-    if (postComment && !commentText.trim()) {
-      setError("Comment text is required when comment is selected.");
+    if (
+      postComment &&
+      selectedAccountIds.some(
+        (id) => !preparedComments[commentAssignments[id] ?? 0]?.trim(),
+      )
+    ) {
+      setError("Prepare and assign a comment to every selected account.");
       return;
     }
 
@@ -107,13 +116,28 @@ function FacebookBrowserView() {
             ? "like"
             : "comment";
 
-      const response = await openFacebookPost(
-        url.trim(),
-        selectedAccountId,
-        selectedAction,
-        postComment ? commentText.trim() || "good" : undefined,
+      const responses = await Promise.all(
+        selectedAccountIds.map((accountId) =>
+          openFacebookPost(
+            url.trim(),
+            accountId,
+            selectedAction,
+            postComment
+              ? preparedComments[commentAssignments[accountId] ?? 0]?.trim() ||
+                  "good"
+              : undefined,
+          ),
+        ),
       );
-      setResult(response);
+      setResult({
+        ...responses[0],
+        message: responses
+          .map(
+            (response, index) =>
+              `${accounts.find((account) => account.id === selectedAccountIds[index])?.name ?? "Account"}: ${response.message}`,
+          )
+          .join(" "),
+      });
       setView("complete");
     } catch (requestError) {
       setError(
@@ -128,7 +152,7 @@ function FacebookBrowserView() {
 
   if (view === "running") {
     const selectedAccount =
-      accounts.find((item) => item.id === selectedAccountId) ?? null;
+      accounts.find((item) => item.id === selectedAccountIds[0]) ?? null;
     const actionLabel =
       likePost && postComment
         ? "Like + comment"
@@ -289,12 +313,12 @@ function FacebookBrowserView() {
                 <div className="flex items-center gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eaf2fc] text-xs font-bold text-[#1976d2]">
                     {accounts
-                      .find((item) => item.id === selectedAccountId)
+                      .find((item) => item.id === selectedAccountIds[0])
                       ?.name.slice(0, 2)
                       .toUpperCase() || "FB"}
                   </span>
                   <span className="text-sm font-semibold text-[#102a43]">
-                    {accounts.find((item) => item.id === selectedAccountId)
+                    {accounts.find((item) => item.id === selectedAccountIds[0])
                       ?.name || "Connected account"}
                   </span>
                 </div>
@@ -366,7 +390,7 @@ function FacebookBrowserView() {
             <Step
               number="2"
               title="Engagement actions"
-              description="Choose what the selected Facebook account should do."
+              description="Choose what each selected Facebook account should do."
             >
               <div className="space-y-3">
                 <CheckRow
@@ -382,16 +406,28 @@ function FacebookBrowserView() {
               </div>
 
               {postComment && (
-                <div className="mt-6">
-                  <p className="mb-2 text-sm font-semibold text-[#102a43]">
-                    Comment text
+                <div className="mt-6 space-y-3">
+                  <p className="text-sm font-semibold text-[#102a43]">
+                    Prepared comments
                   </p>
-                  <input
-                    value={commentText}
-                    onChange={(event) => setCommentText(event.target.value)}
-                    placeholder="Write a comment for the selected post"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#2f80ed] focus:ring-4 focus:ring-[#2f80ed]/10"
-                  />
+                  <p className="text-xs text-slate-500">
+                    Prepare one comment for each connected Facebook account.
+                  </p>
+                  {accounts.map((account, index) => (
+                    <input
+                      key={account.id}
+                      value={preparedComments[index] ?? ""}
+                      onChange={(event) =>
+                        setPreparedComments((current) =>
+                          current.map((item, itemIndex) =>
+                            itemIndex === index ? event.target.value : item,
+                          ),
+                        )
+                      }
+                      placeholder={`Comment for ${account.name}`}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#2f80ed]"
+                    />
+                  ))}
                 </div>
               )}
             </Step>
@@ -401,7 +437,7 @@ function FacebookBrowserView() {
             <Step
               number="3"
               title="Accounts"
-              description="Select the Facebook account to use for this workflow."
+              description="Select the Facebook accounts that should participate in this workflow."
             >
               <div className="space-y-3">
                 {accounts.length === 0 && !isLoadingAccounts ? (
@@ -412,13 +448,19 @@ function FacebookBrowserView() {
                   accounts.map((account) => (
                     <div
                       key={account.id}
-                      className={`rounded-xl border p-4 ${selectedAccountId === account.id ? "border-[#d66b6b] bg-[#fff7f7]" : "border-slate-200"}`}
+                      className={`rounded-xl border p-4 ${selectedAccountIds.includes(account.id) ? "border-[#d66b6b] bg-[#fff7f7]" : "border-slate-200"}`}
                     >
                       <label className="flex cursor-pointer items-center gap-3">
                         <input
-                          type="radio"
-                          checked={selectedAccountId === account.id}
-                          onChange={() => setSelectedAccountId(account.id)}
+                          type="checkbox"
+                          checked={selectedAccountIds.includes(account.id)}
+                          onChange={(event) =>
+                            setSelectedAccountIds((current) =>
+                              event.target.checked
+                                ? [...current, account.id]
+                                : current.filter((id) => id !== account.id),
+                            )
+                          }
                           className="h-4 w-4 accent-[#1976d2]"
                         />
                         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eaf2fc] text-xs font-bold text-[#1976d2]">
@@ -431,6 +473,30 @@ function FacebookBrowserView() {
                           Ready
                         </span>
                       </label>
+                      {selectedAccountIds.includes(account.id) &&
+                        postComment && (
+                          <select
+                            value={commentAssignments[account.id] ?? 0}
+                            onChange={(event) =>
+                              setCommentAssignments((current) => ({
+                                ...current,
+                                [account.id]: Number(event.target.value),
+                              }))
+                            }
+                            className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                          >
+                            {preparedComments.map((comment, index) => (
+                              <option
+                                key={index}
+                                value={index}
+                                disabled={!comment.trim()}
+                              >
+                                Comment {index + 1}:{" "}
+                                {comment.trim() || "Not prepared"}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                     </div>
                   ))
                 )}
@@ -446,7 +512,9 @@ function FacebookBrowserView() {
 
           <button
             type="submit"
-            disabled={isOpening || isLoadingAccounts || !selectedAccountId}
+            disabled={
+              isOpening || isLoadingAccounts || selectedAccountIds.length === 0
+            }
             className="w-full rounded-xl bg-[#dc0000] px-5 py-4 text-base font-semibold text-white shadow-sm hover:bg-[#b80000] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isOpening ? "Opening browser..." : "Start Workflow"}
