@@ -153,8 +153,9 @@ function TikTokWorkflowView() {
   }
 
   if (view === "running") {
-    const selectedAccount =
-      accounts.find((item) => item.id === selectedAccountIds[0]) ?? null;
+    const selectedAccounts = accounts.filter((item) =>
+      selectedAccountIds.includes(item.id),
+    );
     const actionLabel =
       likeVideo && postComment
         ? "Like + comment"
@@ -189,7 +190,9 @@ function TikTokWorkflowView() {
                 <span className="font-semibold text-[#102a43]">
                   Overall progress
                 </span>
-                <span className="text-slate-500">0 / 1 completed</span>
+                <span className="text-slate-500">
+                  0 / {selectedAccounts.length} completed
+                </span>
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                 <div
@@ -209,20 +212,25 @@ function TikTokWorkflowView() {
                 <span>Platform</span>
                 <span>Status</span>
               </div>
-              <div className="grid gap-3 border-b border-slate-100 px-5 py-4 last:border-0 sm:grid-cols-[1.5fr_1fr_1fr] sm:items-center sm:gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
-                    {selectedAccount?.name.slice(0, 2).toUpperCase() || "TT"}
-                  </span>
-                  <span className="text-sm font-semibold text-[#102a43]">
-                    {selectedAccount?.name || "Connected account"}
+              {selectedAccounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="grid gap-3 border-b border-slate-100 px-5 py-4 last:border-0 sm:grid-cols-[1.5fr_1fr_1fr] sm:items-center sm:gap-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
+                      {account.name.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="text-sm font-semibold text-[#102a43]">
+                      {account.name}
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-500">TikTok</span>
+                  <span className="w-fit rounded-full bg-[#f3e8ff] px-2.5 py-1 text-xs font-semibold text-[#6b21a8]">
+                    Running
                   </span>
                 </div>
-                <span className="text-xs text-slate-500">TikTok</span>
-                <span className="w-fit rounded-full bg-[#f3e8ff] px-2.5 py-1 text-xs font-semibold text-[#6b21a8]">
-                  Running
-                </span>
-              </div>
+              ))}
             </div>
             <div className="mt-7 flex justify-between gap-3 border-t border-slate-100 pt-5">
               <button
@@ -268,6 +276,34 @@ function TikTokWorkflowView() {
               <p className="text-sm leading-6 text-slate-600">
                 {result.message}
               </p>
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="hidden grid-cols-[1.5fr_1fr_1fr] gap-4 border-b border-slate-100 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 sm:grid">
+                  <span>Account</span>
+                  <span>Platform</span>
+                  <span>Status</span>
+                </div>
+                {accounts
+                  .filter((account) => selectedAccountIds.includes(account.id))
+                  .map((account) => (
+                    <div
+                      key={account.id}
+                      className="grid gap-3 border-b border-slate-100 px-5 py-4 last:border-0 sm:grid-cols-[1.5fr_1fr_1fr] sm:items-center sm:gap-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e8ff] text-xs font-bold text-[#6b21a8]">
+                          {account.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="text-sm font-semibold text-[#102a43]">
+                          {account.name}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500">TikTok</span>
+                      <span className="w-fit rounded-full bg-[#e8f8f0] px-2.5 py-1 text-xs font-semibold text-[#16845b]">
+                        Completed
+                      </span>
+                    </div>
+                  ))}
+              </div>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
